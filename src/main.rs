@@ -1,5 +1,6 @@
 use average_color::{self, enums::Rgb, get_average_color};
-use image::{imageops, GenericImageView, ImageBuffer, RgbImage, Pixel};
+use image::{imageops, DynamicImage, GenericImageView, ImageBuffer, Pixel, RgbImage};
+use serde::de::IntoDeserializer;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::{fs, path::Path};
@@ -31,7 +32,7 @@ async fn load_blocks(path: &str) -> HashMap<[u8; 3], String> {
 }
 
 pub fn distance(r1: i64, g1: i64, b1: i64, r2: i64, g2: i64, b2: i64) -> i64 {
-    (((r2 - r1).pow(2) + (g2 - g1).pow(2) + (b2 - b1).pow(2)) as f64 ).sqrt() as i64
+    (((r2 - r1).pow(2) + (g2 - g1).pow(2) + (b2 - b1).pow(2)) as f64).sqrt() as i64
 }
 
 pub fn closest(r1: i64, g1: i64, b1: i64, vec: &Vec<&[u8; 3]>) -> [u8; 3] {
@@ -56,91 +57,157 @@ pub fn closest(r1: i64, g1: i64, b1: i64, vec: &Vec<&[u8; 3]>) -> [u8; 3] {
     closest
 }
 
-#[tokio::main]
-async fn main() {
-    let blocks = load_blocks("blocks/").await;
-    let colors: Vec<&[u8; 3]> = blocks.iter().map(|f| f.0).collect();
-    println!("{:?}", blocks);
+fn is_safe_index(x: u32, y: u32, mx: u32, my: u32) -> bool {
+    (x > 0 && x < mx) && (y > 0 && y < my)
+}
 
-    //image processing
-    let input_img = image::open("input.png").unwrap();
-    // carefull on this guy, he wants either rgba or rgb pngs not both
-    let mut buffer = input_img.to_rgb8();
-    let default_color = "blocks/white_glazed_terracotta.png".to_string();
+fn make_transparent(
+    img: DynamicImage,
+    colors: &Vec<&[u8; 3]>,
+) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+    let mut img = img.into_rgba8();
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        if pixel.0[0] <= 10 || pixel.0[0] >= 254 {
+            let is_white: bool = (pixel.0[0] == 255 && pixel.0[1] == 255 && pixel.0[2] == 255);
+            let is_black: bool = (pixel.0[0] == 0 && pixel.0[1] == 0 && pixel.0[2] == 0);
 
-    let (width, height) = buffer.dimensions();
-    let output_img = RgbImage::new(16 * width, 16 * height)
-        .save("output.png")
-        .unwrap();
-    let mut output_img = image::open("output.png").unwrap();
-
-    for y in 1..height-1 {
-        for x in 1..width-1 {
-            let old_color = buffer.get_pixel(x, y).0;
-            let new_color = closest(old_color[0].into(), old_color[1].into(), old_color[2].into(), &colors);
-            buffer.get_pixel_mut(x, y).0 = new_color;
-
-            let err_r: f32 = f32::from(old_color[0]) - f32::from(new_color[0]);
-            let err_g: f32 = f32::from(old_color[1]) - f32::from(new_color[1]);
-            let err_b: f32 = f32::from(old_color[2]) - f32::from(new_color[2]);
-            println!("{},{},{}", err_r, err_g, err_b);
-            //println!("{:?},{:?}", old_color, new_color);
-
-            let r = buffer.get_pixel(x+1, y).0[0];
-            let g = buffer.get_pixel(x+1, y).0[1];
-            let b = buffer.get_pixel(x+1, y).0[2];
-
-            buffer.get_pixel_mut(x+1, y).0[0] = (r as f64 + err_r as f64 * 7f64/16f64) as u8;
-            buffer.get_pixel_mut(x+1, y).0[1] = (g as f64 + err_g as f64 * 7f64/16f64) as u8;
-            buffer.get_pixel_mut(x+1, y).0[2] = (b as f64 + err_b as f64 * 7f64/16f64) as u8;
-
-
-            let r = buffer.get_pixel(x-1,y+1).0[0];
-            let g = buffer.get_pixel(x-1,y+1).0[1];
-            let b = buffer.get_pixel(x-1,y+1).0[2];
-
-            buffer.get_pixel_mut(x-1, y+1).0[0] = (r as f64 + err_r as f64 * 3f64/16f64) as u8;
-            buffer.get_pixel_mut(x-1, y+1).0[1] = (g as f64 + err_g as f64 * 3f64/16f64) as u8;
-            buffer.get_pixel_mut(x-1, y+1).0[2] = (b as f64 + err_b as f64 * 3f64/16f64) as u8;
-
-            let r = buffer.get_pixel(x,y+1).0[0];
-            let g = buffer.get_pixel(x,y+1).0[1];
-            let b = buffer.get_pixel(x,y+1).0[2];
-
-            buffer.get_pixel_mut(x, y+1).0[0] = (r as f64 + err_r as f64 * 5f64/16f64) as u8;
-            buffer.get_pixel_mut(x, y+1).0[1] = (g as f64 + err_g as f64 * 5f64/16f64) as u8;
-            buffer.get_pixel_mut(x, y+1).0[2] = (b as f64 + err_b as f64 * 5f64/16f64) as u8;
-
-
-            let r = buffer.get_pixel(x+1,y+1).0[0];
-            let g = buffer.get_pixel(x+1,y+1).0[1];
-            let b = buffer.get_pixel(x+1,y+1).0[2];
-
-            buffer.get_pixel_mut(x+1, y+1).0[0] = (r as f64 + err_r as f64 * 1f64/16f64) as u8;
-            buffer.get_pixel_mut(x+1, y+1).0[1] = (g as f64 + err_g as f64 * 1f64/16f64) as u8;
-            buffer.get_pixel_mut(x+1, y+1).0[2] = (b as f64 + err_b as f64 * 1f64/16f64) as u8;
-
-            let new_color = buffer.get_pixel(x, y).0;
-
-
-
-
-
-          //// MINECRAFTIFY
-          let img_path = blocks.get(&new_color).unwrap_or(&default_color);
-          let mut img = image::open(img_path).unwrap();
-          imageops::overlay(
-              &mut output_img,
-              &mut img,
-              (x * 16u32).into(),
-              (y * 16u32).into(),
-          );
-            // convert rgb to block
-            //buffer[(x,y)].0 = valid_blocks[0].1;
+            if is_white || is_black {
+                pixel.0 = [0u8, 0u8, 0u8, 0u8];
+            }
         }
     }
 
-    output_img.save("output.png").unwrap();
+    img
+}
+
+fn convert_dir(input_path: &str, blocks: &HashMap<[u8; 3], String>) {
+    let colors: Vec<&[u8; 3]> = blocks.iter().map(|f| f.0).collect();
+    let dir = fs::read_dir("input/").unwrap();
+    for item in dir {
+        let item = item.unwrap();
+        if is_png(&item.path()) {
+            //image processing
+            let input_img = image::open(item.path().to_string_lossy().to_string()).unwrap();
+            // carefull on this guy, he wants either rgba or rgb pngs not both
+            let mut buffer = input_img.to_rgb8();
+            let default_color = "blocks/transparent.png".to_string();
+
+            let (width, height) = buffer.dimensions();
+            let output_img = RgbImage::new(16 * width, 16 * height)
+                .save(format!(
+                    "output/{}",
+                    item.file_name().to_string_lossy().to_string()
+                ))
+                .unwrap();
+            let mut output_img = image::open(format!(
+                "output/{}",
+                item.file_name().to_string_lossy().to_string()
+            ))
+            .unwrap();
+            println!("converintg {}", item.path().to_string_lossy().to_string());
+
+            let mut dither = true;
+
+            for y in 0..height {
+                for x in 0..width {
+                    let old_color = buffer.get_pixel(x, y).0;
+                    let new_color = closest(
+                        old_color[0].into(),
+                        old_color[1].into(),
+                        old_color[2].into(),
+                        &colors,
+                    );
+                    buffer.get_pixel_mut(x, y).0 = new_color;
+
+                    if dither && is_safe_index(x, y, width - 1, height - 1) {
+                        let err_r: f32 = f32::from(old_color[0]) - f32::from(new_color[0]);
+                        let err_g: f32 = f32::from(old_color[1]) - f32::from(new_color[1]);
+                        let err_b: f32 = f32::from(old_color[2]) - f32::from(new_color[2]);
+                        //println!("{},{},{}", err_r, err_g, err_b);
+                        //println!("{:?},{:?}", old_color, new_color);
+
+                        let r = buffer.get_pixel(x + 1, y).0[0];
+                        let g = buffer.get_pixel(x + 1, y).0[1];
+                        let b = buffer.get_pixel(x + 1, y).0[2];
+
+                        buffer.get_pixel_mut(x + 1, y).0[0] =
+                            (r as f64 + err_r as f64 * 7f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x + 1, y).0[1] =
+                            (g as f64 + err_g as f64 * 7f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x + 1, y).0[2] =
+                            (b as f64 + err_b as f64 * 7f64 / 16f64) as u8;
+
+                        let r = buffer.get_pixel(x - 1, y + 1).0[0];
+                        let g = buffer.get_pixel(x - 1, y + 1).0[1];
+                        let b = buffer.get_pixel(x - 1, y + 1).0[2];
+
+                        buffer.get_pixel_mut(x - 1, y + 1).0[0] =
+                            (r as f64 + err_r as f64 * 3f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x - 1, y + 1).0[1] =
+                            (g as f64 + err_g as f64 * 3f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x - 1, y + 1).0[2] =
+                            (b as f64 + err_b as f64 * 3f64 / 16f64) as u8;
+
+                        let r = buffer.get_pixel(x, y + 1).0[0];
+                        let g = buffer.get_pixel(x, y + 1).0[1];
+                        let b = buffer.get_pixel(x, y + 1).0[2];
+
+                        buffer.get_pixel_mut(x, y + 1).0[0] =
+                            (r as f64 + err_r as f64 * 5f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x, y + 1).0[1] =
+                            (g as f64 + err_g as f64 * 5f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x, y + 1).0[2] =
+                            (b as f64 + err_b as f64 * 5f64 / 16f64) as u8;
+
+                        let r = buffer.get_pixel(x + 1, y + 1).0[0];
+                        let g = buffer.get_pixel(x + 1, y + 1).0[1];
+                        let b = buffer.get_pixel(x + 1, y + 1).0[2];
+
+                        buffer.get_pixel_mut(x + 1, y + 1).0[0] =
+                            (r as f64 + err_r as f64 * 1f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x + 1, y + 1).0[1] =
+                            (g as f64 + err_g as f64 * 1f64 / 16f64) as u8;
+                        buffer.get_pixel_mut(x + 1, y + 1).0[2] =
+                            (b as f64 + err_b as f64 * 1f64 / 16f64) as u8;
+                    }
+                    let new_color = buffer.get_pixel(x, y).0;
+
+                    //// MINECRAFTIFY
+                    let img_path = blocks.get(&new_color).unwrap_or(&default_color);
+                    let mut img = image::open(img_path).unwrap();
+                    imageops::overlay(
+                        &mut output_img,
+                        &mut img,
+                        (x * 16u32).into(),
+                        (y * 16u32).into(),
+                    )
+                }
+            }
+
+            let output = make_transparent(output_img, &colors);
+            output
+                .save(format!(
+                    "output/{}",
+                    item.file_name().to_string_lossy().to_string()
+                ))
+                .unwrap();
+            drop(buffer);
+            drop(input_img);
+        }
+    }
+}
+#[tokio::main]
+async fn main() {
+    let blocks = load_blocks("blocks/").await;
+    println!("{:?}", &blocks);
+
+    for item in fs::read_dir("input").unwrap() {
+        let item = item.unwrap();
+        println!("{:?}", item.path());
+        if item.metadata().unwrap().is_dir() {
+            convert_dir(&format!("/{}/", item.path().to_string_lossy().to_string()), &blocks)
+        }
+    }
     //buffer.save("output.png").unwrap();
 
     println!("Hello, world!");
