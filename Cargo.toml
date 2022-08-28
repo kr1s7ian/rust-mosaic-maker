@@ -1,0 +1,13 @@
+[package]
+name = "rust_mc_pixelart"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+average_color = "0.1.1"
+image = "0.24.3"
+imageproc = "0.23.0"
+serde = { version = "1.0.144", features = ["derive"] }
+tokio = { version = "1.20.1", features = ["full"] }
