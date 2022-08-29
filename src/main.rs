@@ -1,5 +1,5 @@
 use average_color::{self, enums::Rgb, get_average_color};
-use image::{imageops, GenericImageView, ImageBuffer, RgbImage};
+use image::{imageops, GenericImageView, ImageBuffer, RgbImage, Pixel};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::{fs, path::Path};
@@ -65,7 +65,7 @@ async fn main() {
     //image processing
     let input_img = image::open("input.png").unwrap();
     // carefull on this guy, he wants either rgba or rgb pngs not both
-    let buffer = input_img.to_rgb8();
+    let mut buffer = input_img.to_rgb8();
     let default_color = "blocks/white_glazed_terracotta.png".to_string();
 
     let (width, height) = buffer.dimensions();
@@ -74,24 +74,72 @@ async fn main() {
         .unwrap();
     let mut output_img = image::open("output.png").unwrap();
 
-    for x in 0..width {
-        for y in 0..height {
-            let color = buffer[(x, y)].0;
-            let color = closest(color[0].into(), color[1].into(), color[2].into(), &colors);
-            let img_path = blocks.get(&color).unwrap_or(&default_color);
-            let mut img = image::open(img_path).unwrap();
-            imageops::overlay(
-                &mut output_img,
-                &mut img,
-                (x * 16u32).into(),
-                (y * 16u32).into(),
-            );
+    for y in 1..height-1 {
+        for x in 1..width-1 {
+            let old_color = buffer[(x, y)].0;
+            let new_color = closest(old_color[0].into(), old_color[1].into(), old_color[2].into(), &colors);
+            buffer.get_pixel_mut(x, y).0 = new_color;
+
+            let err_r = old_color[0] - old_color[0];
+            let err_g = old_color[1] - old_color[1];
+            let err_b = old_color[2] - old_color[2];
+
+            let r = buffer.get_pixel(x+1, y).0[0];
+            let g = buffer.get_pixel(x+1, y).0[1];
+            let b = buffer.get_pixel(x+1, y).0[2];
+
+            buffer.get_pixel_mut(x+1, y).0[0] = (r as f64 + err_r as f64 * 7f64/16f64) as u8;
+            buffer.get_pixel_mut(x+1, y).0[1] = (g as f64 + err_g as f64 * 7f64/16f64) as u8;
+            buffer.get_pixel_mut(x+1, y).0[2] = (b as f64 + err_b as f64 * 7f64/16f64) as u8;
+
+
+            let r = buffer.get_pixel(x-1,y+1).0[0];
+            let g = buffer.get_pixel(x-1,y+1).0[1];
+            let b = buffer.get_pixel(x-1,y+1).0[2];
+
+            buffer.get_pixel_mut(x-1, y+1).0[0] = (r as f64 + err_r as f64 * 3f64/16f64) as u8;
+            buffer.get_pixel_mut(x-1, y+1).0[1] = (g as f64 + err_g as f64 * 3f64/16f64) as u8;
+            buffer.get_pixel_mut(x-1, y+1).0[2] = (b as f64 + err_b as f64 * 3f64/16f64) as u8;
+
+            let r = buffer.get_pixel(x,y+1).0[0];
+            let g = buffer.get_pixel(x,y+1).0[1];
+            let b = buffer.get_pixel(x,y+1).0[2];
+
+            buffer.get_pixel_mut(x, y+1).0[0] = (r as f64 + err_r as f64 * 5f64/16f64) as u8;
+            buffer.get_pixel_mut(x, y+1).0[1] = (g as f64 + err_g as f64 * 5f64/16f64) as u8;
+            buffer.get_pixel_mut(x, y+1).0[2] = (b as f64 + err_b as f64 * 5f64/16f64) as u8;
+
+
+            let r = buffer.get_pixel(x+1,y+1).0[0];
+            let g = buffer.get_pixel(x+1,y+1).0[1];
+            let b = buffer.get_pixel(x+1,y+1).0[2];
+
+            buffer.get_pixel_mut(x+1, y+1).0[0] = (r as f64 + err_r as f64 * 1f64/16f64) as u8;
+            buffer.get_pixel_mut(x+1, y+1).0[1] = (g as f64 + err_g as f64 * 1f64/16f64) as u8;
+            buffer.get_pixel_mut(x+1, y+1).0[2] = (b as f64 + err_b as f64 * 1f64/16f64) as u8;
+
+            let new_color = buffer.get_pixel(x, y).0;
+
+
+
+
+
+          //// MINECRAFTIFY
+          let img_path = blocks.get(&new_color).unwrap_or(&default_color);
+          let mut img = image::open(img_path).unwrap();
+          imageops::overlay(
+              &mut output_img,
+              &mut img,
+              (x * 16u32).into(),
+              (y * 16u32).into(),
+          );
             // convert rgb to block
             //buffer[(x,y)].0 = valid_blocks[0].1;
         }
     }
 
     output_img.save("output.png").unwrap();
+    //buffer.save("output.png").unwrap();
 
     println!("Hello, world!");
 }
