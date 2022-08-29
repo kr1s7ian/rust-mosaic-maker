@@ -76,13 +76,13 @@ async fn main() {
 
     for y in 1..height-1 {
         for x in 1..width-1 {
-            let old_color = buffer[(x, y)].0;
+            let old_color = buffer.get_pixel(x, y).0;
             let new_color = closest(old_color[0].into(), old_color[1].into(), old_color[2].into(), &colors);
             buffer.get_pixel_mut(x, y).0 = new_color;
 
-            let err_r = old_color[0] - old_color[0];
-            let err_g = old_color[1] - old_color[1];
-            let err_b = old_color[2] - old_color[2];
+            let err_r: i32 = old_color[0] as i32 - old_color[0] as i32;
+            let err_g: i32 = old_color[1] as i32 - old_color[1] as i32;
+            let err_b: i32 = old_color[2] as i32 - old_color[2] as i32;
 
             let r = buffer.get_pixel(x+1, y).0[0];
             let g = buffer.get_pixel(x+1, y).0[1];
@@ -138,8 +138,8 @@ async fn main() {
         }
     }
 
-    output_img.save("output.png").unwrap();
-    //buffer.save("output.png").unwrap();
+    //output_img.save("output.png").unwrap();
+    buffer.save("output.png").unwrap();
 
     println!("Hello, world!");
 }
