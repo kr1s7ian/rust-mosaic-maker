@@ -80,30 +80,27 @@ fn make_transparent(
     img
 }
 
+fn is_transparent(rgba: [u8; 4]) -> bool {
+    return rgba[3] > 150u8;
+}
+
 fn convert_dir(input_path: &str, blocks: &HashMap<[u8; 3], String>) {
     let colors: Vec<&[u8; 3]> = blocks.iter().map(|f| f.0).collect();
-    let dir = fs::read_dir("input/").unwrap();
+    let dir = fs::read_dir(input_path).unwrap();
     for item in dir {
         let item = item.unwrap();
         if is_png(&item.path()) {
             //image processing
             let input_img = image::open(item.path().to_string_lossy().to_string()).unwrap();
             // carefull on this guy, he wants either rgba or rgb pngs not both
-            let mut buffer = input_img.to_rgb8();
+            let mut buffer = input_img.to_rgba8();
             let default_color = "blocks/transparent.png".to_string();
 
             let (width, height) = buffer.dimensions();
-            let output_img = RgbImage::new(16 * width, 16 * height)
-                .save(format!(
-                    "output/{}",
-                    item.file_name().to_string_lossy().to_string()
-                ))
+            let output_img = DynamicImage::new_rgba8(16 * width, 16 * height)
+                .save("temp.png")
                 .unwrap();
-            let mut output_img = image::open(format!(
-                "output/{}",
-                item.file_name().to_string_lossy().to_string()
-            ))
-            .unwrap();
+            let mut output_img = image::open("temp.png").unwrap();
             println!("converintg {}", item.path().to_string_lossy().to_string());
 
             let mut dither = true;
@@ -117,6 +114,7 @@ fn convert_dir(input_path: &str, blocks: &HashMap<[u8; 3], String>) {
                         old_color[2].into(),
                         &colors,
                     );
+                    let new_color = [new_color[0], new_color[1], new_color[2], old_color[3]];
                     buffer.get_pixel_mut(x, y).0 = new_color;
 
                     if dither && is_safe_index(x, y, width - 1, height - 1) {
@@ -173,8 +171,12 @@ fn convert_dir(input_path: &str, blocks: &HashMap<[u8; 3], String>) {
                     let new_color = buffer.get_pixel(x, y).0;
 
                     //// MINECRAFTIFY
-                    let img_path = blocks.get(&new_color).unwrap_or(&default_color);
+
+                    let img_path = blocks.get(&new_color[..3]).unwrap_or(&default_color);
                     let mut img = image::open(img_path).unwrap();
+                    if !is_transparent(new_color) {
+                        img = image::open(&default_color).unwrap();
+                    }
                     imageops::overlay(
                         &mut output_img,
                         &mut img,
@@ -184,15 +186,16 @@ fn convert_dir(input_path: &str, blocks: &HashMap<[u8; 3], String>) {
                 }
             }
 
-            let output = make_transparent(output_img, &colors);
-            output
-                .save(format!(
-                    "output/{}",
-                    item.file_name().to_string_lossy().to_string()
-                ))
-                .unwrap();
+            fs::remove_file(item.path()).unwrap();
+            output_img.save(item.path()).unwrap();
             drop(buffer);
             drop(input_img);
+        } else {
+            if item.metadata().unwrap().is_dir() {
+                let path = item.path().to_string_lossy().to_string();
+                println!("converting direcotory: {}", &path);
+                convert_dir(&path, &blocks)
+            }
         }
     }
 }
@@ -201,14 +204,8 @@ async fn main() {
     let blocks = load_blocks("blocks/").await;
     println!("{:?}", &blocks);
 
-    for item in fs::read_dir("input").unwrap() {
-        let item = item.unwrap();
-        println!("{:?}", item.path());
-        if item.metadata().unwrap().is_dir() {
-            convert_dir(&format!("/{}/", item.path().to_string_lossy().to_string()), &blocks)
-        }
-    }
-    //buffer.save("output.png").unwrap();
+    convert_dir("input", &blocks);
+    //convert_dir("input/", &blocks);
 
     println!("Hello, world!");
 }
