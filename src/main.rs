@@ -165,28 +165,29 @@ fn is_transparent(rgba: [u8; 4]) -> bool {
 fn convert_threaded_png(path: &str, blocks: HashMap<[u8; 3], String>, threads: usize) {
     let colors: Vec<[u8; 3]> = blocks.clone().into_iter().map(|f| f.0).collect();
 
-    let img = image::open(path).unwrap();
+    let mut img = image::open(path).unwrap();
     let (sx, sy) = img.dimensions();
 
     let offset = sy / threads as u32;
     let mut start = 0u32;
     let mut end = offset;
     let output_img = DynamicImage::new_rgba8(sx * 16, sy * 16);
-    let buffer = Arc::new(Mutex::new(img.to_rgba8()));
     let output_buffer = Arc::new(Mutex::new(output_img.to_rgba8()));
 
     let mut handles = vec![];
     let dither = true;
     for i in 0..threads {
         println!("thread n {i}");
-        let buffer = Arc::clone(&buffer);
         let output_buffer = Arc::clone(&output_buffer);
         let blocks = blocks.clone();
         let colors = colors.clone();
+
+        let mut slice = img.crop(0, start, sx, end).clone().into_rgba8();
         let handle = thread::spawn(move || {
-            for y in start..end {
+            let (sx, sy) = slice.dimensions();
+            for y in 0..sy {
                 for x in 0..sx {
-                    let old_color = buffer.lock().unwrap().get_pixel(x, y).0;
+                    let old_color = slice.get_pixel(x, y).0;
                     let new_color = closest(
                         old_color[0].into(),
                         old_color[1].into(),
@@ -194,7 +195,7 @@ fn convert_threaded_png(path: &str, blocks: HashMap<[u8; 3], String>, threads: u
                         &colors,
                     );
                     let new_color = [new_color[0], new_color[1], new_color[2], old_color[3]];
-                    buffer.lock().unwrap().get_pixel_mut(x, y).0 = new_color;
+                    slice.get_pixel_mut(x, y).0 = new_color;
 
                     if dither && is_safe_index(x, y, sx - 1, sy - 1) {
                         let err_r: f32 = f32::from(old_color[0]) - f32::from(new_color[0]);
@@ -203,51 +204,51 @@ fn convert_threaded_png(path: &str, blocks: HashMap<[u8; 3], String>, threads: u
                         //println!("{},{},{}", err_r, err_g, err_b);
                         //println!("{:?},{:?}", old_color, new_color);
 
-                        let r = buffer.lock().unwrap().get_pixel(x + 1, y).0[0];
-                        let g = buffer.lock().unwrap().get_pixel(x + 1, y).0[1];
-                        let b = buffer.lock().unwrap().get_pixel(x + 1, y).0[2];
+                        let r = slice.get_pixel(x + 1, y).0[0];
+                        let g = slice.get_pixel(x + 1, y).0[1];
+                        let b = slice.get_pixel(x + 1, y).0[2];
 
-                        buffer.lock().unwrap().get_pixel_mut(x + 1, y).0[0] =
+                        slice.get_pixel_mut(x + 1, y).0[0] =
                             (r as f64 + err_r as f64 * 7f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x + 1, y).0[1] =
+                        slice.get_pixel_mut(x + 1, y).0[1] =
                             (g as f64 + err_g as f64 * 7f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x + 1, y).0[2] =
+                        slice.get_pixel_mut(x + 1, y).0[2] =
                             (b as f64 + err_b as f64 * 7f64 / 16f64) as u8;
 
-                        let r = buffer.lock().unwrap().get_pixel(x - 1, y + 1).0[0];
-                        let g = buffer.lock().unwrap().get_pixel(x - 1, y + 1).0[1];
-                        let b = buffer.lock().unwrap().get_pixel(x - 1, y + 1).0[2];
+                        let r = slice.get_pixel(x - 1, y + 1).0[0];
+                        let g = slice.get_pixel(x - 1, y + 1).0[1];
+                        let b = slice.get_pixel(x - 1, y + 1).0[2];
 
-                        buffer.lock().unwrap().get_pixel_mut(x - 1, y + 1).0[0] =
+                        slice.get_pixel_mut(x - 1, y + 1).0[0] =
                             (r as f64 + err_r as f64 * 3f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x - 1, y + 1).0[1] =
+                        slice.get_pixel_mut(x - 1, y + 1).0[1] =
                             (g as f64 + err_g as f64 * 3f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x - 1, y + 1).0[2] =
+                        slice.get_pixel_mut(x - 1, y + 1).0[2] =
                             (b as f64 + err_b as f64 * 3f64 / 16f64) as u8;
 
-                        let r = buffer.lock().unwrap().get_pixel(x, y + 1).0[0];
-                        let g = buffer.lock().unwrap().get_pixel(x, y + 1).0[1];
-                        let b = buffer.lock().unwrap().get_pixel(x, y + 1).0[2];
+                        let r = slice.get_pixel(x, y + 1).0[0];
+                        let g = slice.get_pixel(x, y + 1).0[1];
+                        let b = slice.get_pixel(x, y + 1).0[2];
 
-                        buffer.lock().unwrap().get_pixel_mut(x, y + 1).0[0] =
+                        slice.get_pixel_mut(x, y + 1).0[0] =
                             (r as f64 + err_r as f64 * 5f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x, y + 1).0[1] =
+                        slice.get_pixel_mut(x, y + 1).0[1] =
                             (g as f64 + err_g as f64 * 5f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x, y + 1).0[2] =
+                        slice.get_pixel_mut(x, y + 1).0[2] =
                             (b as f64 + err_b as f64 * 5f64 / 16f64) as u8;
 
-                        let r = buffer.lock().unwrap().get_pixel(x + 1, y + 1).0[0];
-                        let g = buffer.lock().unwrap().get_pixel(x + 1, y + 1).0[1];
-                        let b = buffer.lock().unwrap().get_pixel(x + 1, y + 1).0[2];
+                        let r = slice.get_pixel(x + 1, y + 1).0[0];
+                        let g = slice.get_pixel(x + 1, y + 1).0[1];
+                        let b = slice.get_pixel(x + 1, y + 1).0[2];
 
-                        buffer.lock().unwrap().get_pixel_mut(x + 1, y + 1).0[0] =
+                        slice.get_pixel_mut(x + 1, y + 1).0[0] =
                             (r as f64 + err_r as f64 * 1f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x + 1, y + 1).0[01] =
+                        slice.get_pixel_mut(x + 1, y + 1).0[01] =
                             (g as f64 + err_g as f64 * 1f64 / 16f64) as u8;
-                        buffer.lock().unwrap().get_pixel_mut(x + 1, y + 1).0[2] =
+                        slice.get_pixel_mut(x + 1, y + 1).0[2] =
                             (b as f64 + err_b as f64 * 1f64 / 16f64) as u8;
                     }
-                    let new_color = buffer.lock().unwrap().get_pixel(x, y).0;
+                    let new_color = slice.get_pixel(x, y).0;
 
                     // MINECRAFTIFY
                     let img_path = blocks.get(&new_color[..3]).unwrap();
@@ -260,7 +261,7 @@ fn convert_threaded_png(path: &str, blocks: HashMap<[u8; 3], String>, threads: u
                         &mut *output_buffer.lock().unwrap(),
                         &mut img,
                         (x * 16u32).into(),
-                        (y * 16u32).into(),
+                        ((start + y) * 16u32).into(),
                     );
                 }
             }
@@ -400,7 +401,7 @@ async fn main() {
     let blocks = load_blocks("blocks/").await;
     println!("{:?}", &blocks);
 
-    convert_threaded_png("input/img.png", blocks, 16);
+    convert_threaded_png("input/img.png", blocks, 4);
 
     //convert_dir("input", &blocks);
     //convert_dir("input/", &blocks);
