@@ -4,7 +4,7 @@ use serde::de::IntoDeserializer;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::{fs, path::Path};
 use tokio;
 
@@ -183,102 +183,101 @@ fn convert_threaded_png(path: &str, blocks: HashMap<[u8; 3], String>, threads: u
         let colors = colors.clone();
 
         let mut slice = img.crop(0, start, sx, end).clone().into_rgba8();
-        let handle = thread::spawn(move || {
-            let (sx, sy) = slice.dimensions();
-            for y in 0..sy {
-                for x in 0..sx {
-                    let old_color = slice.get_pixel(x, y).0;
-                    let new_color = closest(
-                        old_color[0].into(),
-                        old_color[1].into(),
-                        old_color[2].into(),
-                        &colors,
-                    );
-                    let new_color = [new_color[0], new_color[1], new_color[2], old_color[3]];
-                    slice.get_pixel_mut(x, y).0 = new_color;
+        let mut slice_out = DynamicImage::new_rgba8(sx * 16u32, offset * 16u32).clone();
+      let handle = thread::spawn(move || {
+          let (sx, sy) = slice.dimensions();
+          for y in 0..sy {
+              for x in 0..sx {
+                  let old_color = slice.get_pixel(x, y).0;
+                  let new_color = closest(
+                      old_color[0].into(),
+                      old_color[1].into(),
+                      old_color[2].into(),
+                      &colors,
+                  );
+                  let new_color = [new_color[0], new_color[1], new_color[2], old_color[3]];
+                  slice.get_pixel_mut(x, y).0 = new_color;
 
-                    if dither && is_safe_index(x, y, sx - 1, sy - 1) {
-                        let err_r: f32 = f32::from(old_color[0]) - f32::from(new_color[0]);
-                        let err_g: f32 = f32::from(old_color[1]) - f32::from(new_color[1]);
-                        let err_b: f32 = f32::from(old_color[2]) - f32::from(new_color[2]);
-                        //println!("{},{},{}", err_r, err_g, err_b);
-                        //println!("{:?},{:?}", old_color, new_color);
+                  if dither && is_safe_index(x, y, sx - 1, sy - 1) {
+                      let err_r: f32 = f32::from(old_color[0]) - f32::from(new_color[0]);
+                      let err_g: f32 = f32::from(old_color[1]) - f32::from(new_color[1]);
+                      let err_b: f32 = f32::from(old_color[2]) - f32::from(new_color[2]);
+                      //println!("{},{},{}", err_r, err_g, err_b);
+                      //println!("{:?},{:?}", old_color, new_color);
 
-                        let r = slice.get_pixel(x + 1, y).0[0];
-                        let g = slice.get_pixel(x + 1, y).0[1];
-                        let b = slice.get_pixel(x + 1, y).0[2];
+                      let r = slice.get_pixel(x + 1, y).0[0];
+                      let g = slice.get_pixel(x + 1, y).0[1];
+                      let b = slice.get_pixel(x + 1, y).0[2];
 
-                        slice.get_pixel_mut(x + 1, y).0[0] =
-                            (r as f64 + err_r as f64 * 7f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x + 1, y).0[1] =
-                            (g as f64 + err_g as f64 * 7f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x + 1, y).0[2] =
-                            (b as f64 + err_b as f64 * 7f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x + 1, y).0[0] =
+                          (r as f64 + err_r as f64 * 7f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x + 1, y).0[1] =
+                          (g as f64 + err_g as f64 * 7f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x + 1, y).0[2] =
+                          (b as f64 + err_b as f64 * 7f64 / 16f64) as u8;
 
-                        let r = slice.get_pixel(x - 1, y + 1).0[0];
-                        let g = slice.get_pixel(x - 1, y + 1).0[1];
-                        let b = slice.get_pixel(x - 1, y + 1).0[2];
+                      let r = slice.get_pixel(x - 1, y + 1).0[0];
+                      let g = slice.get_pixel(x - 1, y + 1).0[1];
+                      let b = slice.get_pixel(x - 1, y + 1).0[2];
 
-                        slice.get_pixel_mut(x - 1, y + 1).0[0] =
-                            (r as f64 + err_r as f64 * 3f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x - 1, y + 1).0[1] =
-                            (g as f64 + err_g as f64 * 3f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x - 1, y + 1).0[2] =
-                            (b as f64 + err_b as f64 * 3f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x - 1, y + 1).0[0] =
+                          (r as f64 + err_r as f64 * 3f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x - 1, y + 1).0[1] =
+                          (g as f64 + err_g as f64 * 3f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x - 1, y + 1).0[2] =
+                          (b as f64 + err_b as f64 * 3f64 / 16f64) as u8;
 
-                        let r = slice.get_pixel(x, y + 1).0[0];
-                        let g = slice.get_pixel(x, y + 1).0[1];
-                        let b = slice.get_pixel(x, y + 1).0[2];
+                      let r = slice.get_pixel(x, y + 1).0[0];
+                      let g = slice.get_pixel(x, y + 1).0[1];
+                      let b = slice.get_pixel(x, y + 1).0[2];
 
-                        slice.get_pixel_mut(x, y + 1).0[0] =
-                            (r as f64 + err_r as f64 * 5f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x, y + 1).0[1] =
-                            (g as f64 + err_g as f64 * 5f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x, y + 1).0[2] =
-                            (b as f64 + err_b as f64 * 5f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x, y + 1).0[0] =
+                          (r as f64 + err_r as f64 * 5f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x, y + 1).0[1] =
+                          (g as f64 + err_g as f64 * 5f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x, y + 1).0[2] =
+                          (b as f64 + err_b as f64 * 5f64 / 16f64) as u8;
 
-                        let r = slice.get_pixel(x + 1, y + 1).0[0];
-                        let g = slice.get_pixel(x + 1, y + 1).0[1];
-                        let b = slice.get_pixel(x + 1, y + 1).0[2];
+                      let r = slice.get_pixel(x + 1, y + 1).0[0];
+                      let g = slice.get_pixel(x + 1, y + 1).0[1];
+                      let b = slice.get_pixel(x + 1, y + 1).0[2];
 
-                        slice.get_pixel_mut(x + 1, y + 1).0[0] =
-                            (r as f64 + err_r as f64 * 1f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x + 1, y + 1).0[01] =
-                            (g as f64 + err_g as f64 * 1f64 / 16f64) as u8;
-                        slice.get_pixel_mut(x + 1, y + 1).0[2] =
-                            (b as f64 + err_b as f64 * 1f64 / 16f64) as u8;
-                    }
-                    let new_color = slice.get_pixel(x, y).0;
+                      slice.get_pixel_mut(x + 1, y + 1).0[0] =
+                          (r as f64 + err_r as f64 * 1f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x + 1, y + 1).0[01] =
+                          (g as f64 + err_g as f64 * 1f64 / 16f64) as u8;
+                      slice.get_pixel_mut(x + 1, y + 1).0[2] =
+                          (b as f64 + err_b as f64 * 1f64 / 16f64) as u8;
+                  }
+                  let new_color = slice.get_pixel(x, y).0;
 
-                    // MINECRAFTIFY
-                    let img_path = blocks.get(&new_color[..3]).unwrap();
-                    let mut img = image::open(img_path).unwrap();
-                    if !is_transparent(new_color) {
-                        img = image::open("blocks/transparent.png").unwrap();
-                    }
-
-                    imageops::overlay(
-                        &mut *output_buffer.lock().unwrap(),
-                        &mut img,
-                        (x * 16u32).into(),
-                        ((start + y) * 16u32).into(),
-                    );
+                // MINECRAFTIFY
+                let img_path = blocks.get(&new_color[..3]).unwrap();
+                let mut img = image::open(img_path).unwrap();
+                if !is_transparent(new_color) {
+                    img = image::open("blocks/transparent.png").unwrap();
                 }
-            }
-        });
-        start = end;
-        end += offset;
-        handles.push(handle);
-    }
-    for handle in handles {
-        handle.join().unwrap();
-    }
 
-    output_buffer
-        .lock()
-        .unwrap()
-        .save("input/output.png")
-        .unwrap();
+                imageops::overlay(
+                    &mut slice_out,
+                    &mut img,
+                    (x * 16u32).into(),
+                    (y * 16u32).into(),
+                );
+              }
+          }
+          //slice_out.save(&format!("input/output{i}.png")).unwrap();
+          imageops::overlay(&mut *output_buffer.lock().unwrap(), &mut slice_out, 0, ((i as u32 * offset) * 16u32).into());
+      });
+      start = end;
+      end += offset;
+      handles.push(handle);
+  }
+
+  for handle in handles {
+      handle.join().unwrap();
+  }
+  output_buffer.lock().unwrap().save("input/output.png").unwrap();
 }
 
 //  fn convert_dir(input_path: &str, blocks: HashMap<[u8; 3], String>) {
@@ -401,7 +400,7 @@ async fn main() {
     let blocks = load_blocks("blocks/").await;
     println!("{:?}", &blocks);
 
-    convert_threaded_png("input/img.png", blocks, 4);
+    convert_threaded_png("input/img.png", blocks, 8);
 
     //convert_dir("input", &blocks);
     //convert_dir("input/", &blocks);
