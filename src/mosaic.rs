@@ -1,11 +1,11 @@
-use std::{error::Error, fs, io::ErrorKind, mem, path::Path};
+use std::{error::Error, fs, io::ErrorKind, marker::PhantomData, mem, path::Path};
 
 use image::{imageops, DynamicImage, EncodableLayout, GenericImageView, ImageError};
 use palette::rgb::Rgb;
 
 use crate::{
-    dithering::dither_img,
-    utils::{average_color, closest_color, get_prominent_color, is_png, rgb_distance},
+    algorithms::dithering::dither_img,
+    utils::{closest_color, is_png, rgb_distance, AverageColor},
 };
 
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl MosaicMaker {
         }
     }
 
-    pub fn load_pieces(&mut self, path: &str) -> Result<(), Box<dyn Error>> {
+    pub fn load_pieces<T: AverageColor>(&mut self, path: &str) -> Result<(), Box<dyn Error>> {
         let pieces_path = Path::new(path);
         let folder = fs::read_dir(pieces_path)?;
 
@@ -60,8 +60,7 @@ impl MosaicMaker {
             let piece_img_path = path_string.as_str();
 
             let img = image::open(piece_img_path)?.to_rgb16();
-            let average_color = get_prominent_color(&img.into());
-            //let average_color = average_color(img.as_bytes());
+            let average_color = T::average_color(&img.into());
             let average_color = match average_color {
                 Some(color) => color,
                 None => continue,
