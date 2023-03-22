@@ -2,7 +2,7 @@ use image::{DynamicImage, ImageBuffer, Rgba};
 
 use crate::utils::closest_color;
 
-pub fn calutate_error(old_pixel: &[u8; 3], new_pixel: &[u8; 3]) -> [f32; 3] {
+fn calutate_error(old_pixel: &[u8; 3], new_pixel: &[u8; 3]) -> [f32; 3] {
     [
         f32::from(old_pixel[0]) - f32::from(new_pixel[0]),
         f32::from(old_pixel[1]) - f32::from(new_pixel[1]),
@@ -10,7 +10,7 @@ pub fn calutate_error(old_pixel: &[u8; 3], new_pixel: &[u8; 3]) -> [f32; 3] {
     ]
 }
 
-pub fn apply_error(error: &[f32; 3], pixel: &[u8; 3], coeff: f32) -> [u8; 3] {
+fn apply_error(error: &[f32; 3], pixel: &[u8; 3], coeff: f32) -> [u8; 3] {
     [
         (pixel[0] as f32 + error[0] * coeff / 16f32) as u8,
         (pixel[1] as f32 + error[1] * coeff / 16f32) as u8,
