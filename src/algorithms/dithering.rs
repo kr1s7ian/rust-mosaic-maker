@@ -28,7 +28,7 @@ pub fn dither_img(img: &DynamicImage, group: &[[u8; 3]]) -> DynamicImage {
     for y in 0..sy {
         for x in 0..sx {
             let old_pixel = img.get_pixel(x, y).0;
-            let closest_pixel = closest_color(&group, &old_pixel);
+            let closest_pixel = closest_color(group, &old_pixel);
             let new_pixel = closest_pixel;
             img.get_pixel_mut(x, y).0 = closest_pixel;
 
