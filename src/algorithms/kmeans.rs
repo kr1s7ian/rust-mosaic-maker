@@ -14,8 +14,8 @@ impl AverageColor for KmeansAlgorithm {
 
         // Iterate over the runs, keep the best results
         let mut result = Kmeans::new();
-        for i in 0..25 {
-            let run_result = get_kmeans(8, 25, 5.0, false, &lab, 72342792347 + i as u64);
+        for i in 0..3 {
+            let run_result = get_kmeans(8, 20, 5.0, false, &lab, 72342792347 + i as u64);
             if run_result.score < result.score {
                 result = run_result;
             }
