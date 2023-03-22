@@ -83,8 +83,8 @@ impl MosaicMaker {
         self.piece_size
     }
 
-    pub fn pieces_size_mut(&mut self) -> &mut (usize, usize) {
-        &mut self.piece_size
+    pub fn set_piece_size(&mut self, piece_size: (usize, usize)) {
+        self.piece_size = piece_size;
     }
 
     pub fn compose(
