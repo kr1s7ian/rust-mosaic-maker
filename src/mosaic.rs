@@ -45,7 +45,10 @@ impl MosaicMaker {
         }
     }
 
-    pub fn load_pieces<T: AverageColor>(&mut self, path: &str) -> Result<(), Box<dyn Error>> {
+    pub fn load_pieces<T: AverageColor>(
+        &mut self,
+        path: &str,
+    ) -> Result<&mut Self, Box<dyn Error>> {
         let pieces_path = Path::new(path);
         let folder = fs::read_dir(pieces_path)?;
 
@@ -71,7 +74,7 @@ impl MosaicMaker {
             })
         }
 
-        Ok(())
+        Ok(self)
     }
 
     pub fn clear_pieces(&mut self) {
