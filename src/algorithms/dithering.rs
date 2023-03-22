@@ -22,7 +22,7 @@ fn is_safe_index(x: u32, y: u32, mx: u32, my: u32) -> bool {
     (x > 0 && x < mx) && (y > 0 && y < my)
 }
 
-pub fn dither_img(img: DynamicImage, group: &[[u8; 3]]) -> DynamicImage {
+pub fn dither_img(img: &DynamicImage, group: &[[u8; 3]]) -> DynamicImage {
     let mut img = img.to_rgb8();
     let (sx, sy) = img.dimensions();
     for y in 0..sy {

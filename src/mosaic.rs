@@ -21,7 +21,7 @@ pub struct MosaicMaker {
 }
 
 impl MosaicMaker {
-    fn closest_piece_to_color(&self, target: &[u8; 3]) -> Piece {
+    fn closest_piece_to_color<'a>(&'a self, target: &[u8; 3]) -> &'a Piece {
         let mut biggest_difference: i64 = i64::max_value();
         let mut closest = self.pieces.first().unwrap();
 
@@ -33,7 +33,7 @@ impl MosaicMaker {
             }
         }
 
-        closest.clone()
+        closest
     }
 }
 
@@ -101,7 +101,7 @@ impl MosaicMaker {
 
         let available_colors: Vec<[u8; 3]> = self.pieces.iter().map(|p| p.average_color).collect();
         if dithering {
-            target_image = dither_img(target_image.into(), &available_colors).to_rgb8();
+            target_image = dither_img(&target_image.into(), &available_colors).to_rgb8();
         }
 
         for x in 0..w {
@@ -109,7 +109,7 @@ impl MosaicMaker {
                 let pixel = target_image.get_pixel(x, y);
                 let closest_piece = self.closest_piece_to_color(&pixel.0);
 
-                let mut piece_img = image::open(closest_piece.src)?;
+                let mut piece_img = image::open(&closest_piece.src)?;
 
                 imageops::overlay(
                     &mut output_img,
