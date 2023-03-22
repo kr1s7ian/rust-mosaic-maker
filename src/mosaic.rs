@@ -5,7 +5,7 @@ use image::{imageops, DynamicImage};
 
 use crate::{
     algorithms::dithering::dither_img,
-    utils::{is_png, rgb_distance, AverageColor},
+    utils::{is_png, is_transparent, rgb_distance, AverageColor},
 };
 #[derive(Debug, Clone)]
 pub struct Piece {
@@ -16,16 +16,16 @@ pub struct Piece {
 #[derive(Debug, Clone)]
 pub struct MosaicMaker {
     pieces: Vec<Piece>,
-    piece_size: (usize, usize),
+    piece_size: (u32, u32),
 }
 
 impl MosaicMaker {
     fn closest_piece_to_color<'a>(&'a self, target: &[u8; 3]) -> &'a Piece {
         let mut biggest_difference: i64 = i64::max_value();
-        let mut closest = self.pieces.first().unwrap();
+        let mut closest = self.pieces.first().expect("Load at least one png!");
 
         for piece in self.pieces.iter() {
-            let distance = rgb_distance(&target, &piece.average_color);
+            let distance = rgb_distance(target, &piece.average_color);
             if distance < biggest_difference {
                 biggest_difference = distance;
                 closest = piece;
@@ -37,7 +37,7 @@ impl MosaicMaker {
 }
 
 impl MosaicMaker {
-    pub fn new(piece_size: (usize, usize)) -> Self {
+    pub fn new(piece_size: (u32, u32)) -> Self {
         Self {
             pieces: vec![],
             piece_size,
@@ -47,6 +47,7 @@ impl MosaicMaker {
     pub fn load_pieces<T: AverageColor>(
         &mut self,
         path: &str,
+        allow_transparency: bool,
     ) -> Result<&mut Self, Box<dyn Error>> {
         let pieces_path = Path::new(path);
         let folder = fs::read_dir(pieces_path)?;
@@ -54,19 +55,29 @@ impl MosaicMaker {
         for file in folder {
             let file = file?;
             let path_string = file.path().to_string_lossy().to_string();
+
             if !is_png(&file.path()) {
                 println!("Ignoring: {path_string}, this file is not a png or is corrupted.");
                 continue;
             };
-            println!("Loading: {path_string}...");
-            let piece_img_path = path_string.as_str();
 
-            let img = image::open(piece_img_path)?.to_rgb16();
+            let piece_img_path = path_string.as_str();
+            let img = image::open(piece_img_path)?;
+
+            if is_transparent(&img) && !allow_transparency {
+                println!("Ignoring: {path_string}, this file contains transparent pixels.");
+                continue;
+            }
+
+            println!("Loading: {path_string}...");
+            let img = img.to_rgba8();
+
             let average_color = T::average_color(&img.into());
             let average_color = match average_color {
-                Some(color) => color,
                 None => continue,
+                Some(color) => color,
             };
+
             self.pieces.push(Piece {
                 src: piece_img_path.to_string(),
                 average_color,
@@ -80,11 +91,11 @@ impl MosaicMaker {
         self.pieces.clear();
     }
 
-    pub fn pieces_size(&self) -> (usize, usize) {
+    pub fn pieces_size(&self) -> (u32, u32) {
         self.piece_size
     }
 
-    pub fn set_piece_size(&mut self, piece_size: (usize, usize)) {
+    pub fn set_piece_size(&mut self, piece_size: (u32, u32)) {
         self.piece_size = piece_size;
     }
 
@@ -93,28 +104,36 @@ impl MosaicMaker {
         image_path: &str,
         dithering: bool,
     ) -> Result<DynamicImage, Box<dyn Error>> {
-        let mut target_image = image::open(image_path)?.to_rgb8();
-        let (w, h) = target_image.dimensions();
-        let (piece_w, piece_h) = self.piece_size;
-        let mut output_img = DynamicImage::new_rgb8(w * piece_w as u32, h * piece_h as u32);
+        let mut target_image = image::open(image_path)?.to_rgba8();
 
-        let available_colors: Vec<[u8; 3]> = self.pieces.iter().map(|p| p.average_color).collect();
+        let (target_width, target_height) = target_image.dimensions();
+        let (piece_width, piece_height) = self.piece_size;
+
+        let mut output_img =
+            DynamicImage::new_rgba8(target_width * piece_width, target_height * piece_height);
+
         if dithering {
-            target_image = dither_img(&target_image.into(), &available_colors).to_rgb8();
+            let available_colors: Vec<[u8; 3]> =
+                self.pieces.iter().map(|p| p.average_color).collect();
+            target_image = dither_img(&target_image.into(), &available_colors).to_rgba8();
         }
 
-        for x in 0..w {
-            for y in 0..h {
+        for x in 0..target_width {
+            for y in 0..target_height {
                 let pixel = target_image.get_pixel(x, y);
-                let closest_piece = self.closest_piece_to_color(&pixel.0);
+                if pixel.0[3] < 100 {
+                    continue;
+                }
+                let rgb = [pixel.0[0], pixel[1], pixel[2]];
+                let closest_piece = self.closest_piece_to_color(&rgb);
 
-                let mut piece_img = image::open(&closest_piece.src)?;
+                let piece_img = image::open(&closest_piece.src)?;
 
                 imageops::overlay(
                     &mut output_img,
-                    &mut piece_img,
-                    x as i64 * piece_w as i64,
-                    y as i64 * piece_h as i64,
+                    &piece_img,
+                    x as i64 * piece_width as i64,
+                    y as i64 * piece_height as i64,
                 );
             }
         }
