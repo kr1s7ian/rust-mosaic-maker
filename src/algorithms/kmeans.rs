@@ -32,7 +32,7 @@ impl AverageColor for KmeansAlgorithm {
             Some(lab) => {
                 let rgb_color: Rgb = lab.into_color();
                 let raw_color: [u8; 3] = rgb_color.into_format().into_raw();
-                return Some(raw_color);
+                Some(raw_color)
             }
         }
     }
