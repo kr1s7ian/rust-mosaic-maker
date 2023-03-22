@@ -96,9 +96,10 @@ impl MosaicMaker {
         let (w, h) = target_image.dimensions();
         let (piece_w, piece_h) = self.piece_size;
         let mut output_img = DynamicImage::new_rgb8(w * piece_w as u32, h * piece_h as u32);
-        let group: Vec<[u8; 3]> = self.pieces.iter().map(|p| p.average_color).collect();
+
+        let available_colors: Vec<[u8; 3]> = self.pieces.iter().map(|p| p.average_color).collect();
         if dithering {
-            target_image = dither_img(target_image.into(), &group).to_rgb8();
+            target_image = dither_img(target_image.into(), &available_colors).to_rgb8();
         }
 
         for x in 0..w {

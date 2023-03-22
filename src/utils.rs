@@ -59,11 +59,11 @@ pub fn get_prominent_color(image: &DynamicImage) -> Option<[u8; 3]> {
         .map(|(color, _)| color)
 }
 
-pub fn closest_color(group: &[[u8; 3]], target: &[u8; 3]) -> [u8; 3] {
+pub fn closest_color(available_colors: &[[u8; 3]], target: &[u8; 3]) -> [u8; 3] {
     let mut biggest_difference: i64 = i64::max_value();
     let mut closest = [0u8, 0u8, 0u8];
 
-    for (i, color) in group.iter().enumerate() {
+    for (i, color) in available_colors.iter().enumerate() {
         let distance = rgb_distance(&target, color);
         if distance < biggest_difference {
             biggest_difference = distance;
