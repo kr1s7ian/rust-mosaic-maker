@@ -1,13 +1,12 @@
-use std::{error::Error, fs, io::ErrorKind, marker::PhantomData, mem, path::Path};
+#![allow(dead_code)]
+use std::{error::Error, fs, path::Path};
 
-use image::{imageops, DynamicImage, EncodableLayout, GenericImageView, ImageError};
-use palette::rgb::Rgb;
+use image::{imageops, DynamicImage};
 
 use crate::{
     algorithms::dithering::dither_img,
-    utils::{closest_color, is_png, rgb_distance, AverageColor},
+    utils::{is_png, rgb_distance, AverageColor},
 };
-
 #[derive(Debug, Clone)]
 pub struct Piece {
     src: String,

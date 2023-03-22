@@ -5,7 +5,7 @@ mod mosaic;
 mod utils;
 
 use algorithms::histogram::HistogramAlgorithm;
-use algorithms::kmeans::KmeansAlgorithm;
+//use algorithms::kmeans::KmeansAlgorithm;
 
 fn main() {
     let mut mosaic_maker = MosaicMaker::new((16, 16));

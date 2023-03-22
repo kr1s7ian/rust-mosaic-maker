@@ -1,4 +1,4 @@
-use image::{DynamicImage, ImageBuffer, Rgba};
+use image::DynamicImage;
 
 use crate::utils::closest_color;
 

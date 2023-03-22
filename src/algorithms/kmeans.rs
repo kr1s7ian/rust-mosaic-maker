@@ -1,6 +1,6 @@
 use crate::utils::AverageColor;
-use kmeans_colors::{get_kmeans, Calculate, Kmeans, MapColor, Sort};
-use palette::{rgb::Rgb, FromColor, IntoColor, Lab, Pixel, Srgb};
+use kmeans_colors::{get_kmeans, Kmeans, Sort};
+use palette::{rgb::Rgb, IntoColor, Lab, Pixel, Srgb};
 
 pub struct KmeansAlgorithm {}
 
