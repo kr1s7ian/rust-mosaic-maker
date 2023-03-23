@@ -31,7 +31,7 @@ pub fn rgb_distance(a: &[u8; 3], b: &[u8; 3]) -> i64 {
     (((r2 - r1).pow(2) + (g2 - g1).pow(2) + (b2 - b1).pow(2)) as f64).sqrt() as i64
 }
 
-pub fn is_transparent(image: &DynamicImage) -> bool {
+pub fn img_transparent(image: &DynamicImage) -> bool {
     let mut image = image.to_rgba8();
     for pixel in image.pixels_mut() {
         if pixel.0[3] != 255 {
@@ -40,4 +40,7 @@ pub fn is_transparent(image: &DynamicImage) -> bool {
     }
 
     false
+}
+pub fn pixel_transparent(pixel: &[u8; 4]) -> bool {
+    pixel[3] < 100u8
 }
