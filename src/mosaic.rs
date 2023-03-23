@@ -5,7 +5,7 @@ use image::{imageops, DynamicImage};
 
 use crate::{
     algorithms::dithering::dither_img,
-    utils::{is_png, is_transparent, rgb_distance, AverageColor},
+    utils::{img_transparent, is_png, pixel_transparent, rgb_distance, AverageColor},
 };
 #[derive(Debug, Clone)]
 pub struct Piece {
@@ -64,7 +64,7 @@ impl MosaicMaker {
             let piece_img_path = path_string.as_str();
             let img = image::open(piece_img_path)?;
 
-            if is_transparent(&img) && !allow_transparency {
+            if img_transparent(&img) && !allow_transparency {
                 println!("Ignoring: {path_string}, this file contains transparent pixels.");
                 continue;
             }
@@ -121,7 +121,7 @@ impl MosaicMaker {
         for x in 0..target_width {
             for y in 0..target_height {
                 let pixel = target_image.get_pixel(x, y);
-                if pixel.0[3] < 100 {
+                if pixel_transparent(&pixel.0) {
                     continue;
                 }
                 let rgb = [pixel.0[0], pixel[1], pixel[2]];
