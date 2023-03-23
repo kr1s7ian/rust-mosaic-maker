@@ -1,4 +1,4 @@
-use std::{error::Error, fs, path::Path};
+use std::{error::Error, fmt::Display, fs, path::Path};
 
 use crate::mosaic::MosaicMaker;
 
@@ -17,36 +17,80 @@ pub struct Cli {
     output_path: String,
     pieces_folder: String,
     piece_size: u32,
-    #[arg()]
-    dither: Option<bool>,
-    #[arg()]
-    allow_transparent_pieces: Option<bool>,
+    #[arg(short = 'd', long = "dither")]
+    dither: bool,
+    #[arg(short = 't', long = "transparent_pieces")]
+    allow_transparent_pieces: bool,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[derive(Debug)]
+enum CliErrors {
+    LoadingPieces,
+    CompsingMosaic,
+    ErrorSavingImage,
+}
+
+impl Display for CliErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CompsingMosaic => {
+                write!(f, "Error composing the mosaic, check if the input image path is valid and it is an image format.")
+            }
+            Self::LoadingPieces => {
+                write!(
+                    f,
+                    "Error loading mosaic pieces, check if the mosaic pieces folder path is valid."
+                )
+            }
+            Self::ErrorSavingImage => {
+                write!(
+                    f,
+                    "Error saving the ouput image, check if the output path is valid and is an image format."
+                )
+            }
+        }
+    }
+}
+impl Error for CliErrors {}
+
+fn run() -> Result<(), CliErrors> {
     let cli = Cli::parse();
-    let allow_transparency = cli.allow_transparent_pieces.unwrap_or(true);
+    let allow_transparency = cli.allow_transparent_pieces;
     let piece_size = (cli.piece_size, cli.piece_size);
     let pieces_path = cli.pieces_folder;
     let target_image = cli.input_path;
     let output_path = cli.output_path;
-    let dithering = cli.dither.unwrap_or(false);
+    let dithering = cli.dither;
 
     let mut mosaic_maker = MosaicMaker::new(piece_size);
-    mosaic_maker.load_pieces::<HistogramAlgorithm>(&pieces_path, allow_transparency)?;
+    println!("Loading pieces...");
+    mosaic_maker
+        .load_pieces::<HistogramAlgorithm>(&pieces_path, allow_transparency)
+        .map_err(|e| CliErrors::LoadingPieces)?;
     println!("Done loading pieces.");
 
     println!("Composing mosaic...");
-    let output = mosaic_maker.compose(&target_image, dithering)?;
+    let output = mosaic_maker
+        .compose(&target_image, dithering)
+        .map_err(|e| CliErrors::CompsingMosaic)?;
     println!("Done composing mosaic.");
 
     println!("Saving mosaic file...");
-    output.save(&output_path)?;
+    output
+        .save(&output_path)
+        .map_err(|e| CliErrors::ErrorSavingImage)?;
     println!(
         "Succesfully generated mosaic from {pieces_path} folder and saved result to {output_path}."
     );
 
     Ok(())
+}
+
+fn main() {
+    match run() {
+        Err(e) => println!("{}", e.to_string()),
+        Ok(_) => println!(""),
+    }
 }
 
 pub fn compose_folder_recursively(path: &Path, mosaic_maker: &MosaicMaker) {
