@@ -1,10 +1,6 @@
 use image::DynamicImage;
 use std::{ffi::OsStr, path::Path};
 
-pub trait AverageColor {
-    fn average_color(image: &DynamicImage) -> Option<[u8; 3]>;
-}
-
 pub fn is_png(path: &Path) -> bool {
     path.extension().and_then(OsStr::to_str) == Some("png")
 }
