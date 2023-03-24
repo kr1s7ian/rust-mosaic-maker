@@ -1,19 +1,34 @@
 use std::{
     error::Error,
-    fmt::{format, Display},
+    fmt::{format, write, Display},
     fs,
     path::Path,
 };
 
-use crate::mosaic::MosaicMaker;
+use crate::{
+    algorithms::{histogram::HistogramAlgorithm, kmeans::KmeansAlgorithm},
+    mosaic::MosaicMaker,
+    utils::AverageColor,
+};
 
 mod algorithms;
 mod mosaic;
 mod utils;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use utils::is_png;
 //use algorithms::kmeans::KmeansAlgorithm;
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum CliAlgorithms {
+    Kmeans,
+    Histogram,
+}
+impl Display for CliAlgorithms {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[derive(Parser, Debug)]
 pub struct Cli {
@@ -27,15 +42,17 @@ pub struct Cli {
     dither: bool,
     #[arg(short = 't', long = "transparent_pieces")]
     allow_transparent_pieces: bool,
+    #[arg(value_enum, short = 'a', long = "algorithm", default_value = "kmeans")]
+    algorithm: CliAlgorithms,
     #[arg(short = 'i', long = "kmeans_iterations")]
-    #[arg(default_value_t = 100)]
+    #[arg(default_value_t = 100, requires = "algorithm=kmeans")]
     kmeans_iterations: usize,
-    #[arg(short = 's', long = "kmeans_min_score")]
+    #[arg(short = 's', long = "kmeans_min_score", requires = "algorithm=kmeans")]
     #[arg(default_value_t = 0.001)]
     kmeans_min_score: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum CliErrors {
     LoadingPieces,
     CompsingMosaic,
@@ -76,13 +93,19 @@ fn run() -> Result<(), CliErrors> {
     let cli = Cli::parse();
     let mut mosaic_maker = MosaicMaker::new(cli.piece_size);
     println!("Loading pieces...");
+
+    let algorithm: Box<dyn AverageColor>;
+    match cli.algorithm {
+        CliAlgorithms::Histogram => algorithm = Box::new(HistogramAlgorithm::new()),
+        CliAlgorithms::Kmeans => {
+            algorithm = Box::new(KmeansAlgorithm::new(
+                cli.kmeans_iterations,
+                cli.kmeans_min_score,
+            ))
+        }
+    };
     mosaic_maker
-        .load_pieces(
-            &cli.pieces_folder,
-            cli.allow_transparent_pieces,
-            cli.kmeans_iterations,
-            cli.kmeans_min_score,
-        )
+        .load_pieces(&cli.pieces_folder, cli.allow_transparent_pieces, algorithm)
         .map_err(|_| CliErrors::LoadingPieces)?;
     println!("Done loading pieces.");
 
