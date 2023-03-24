@@ -6,9 +6,8 @@ mod algorithms;
 mod mosaic;
 mod utils;
 
-use algorithms::histogram::HistogramAlgorithm;
-use clap::{Parser, Subcommand};
-use utils::{is_png, AverageColor};
+use clap::Parser;
+use utils::is_png;
 //use algorithms::kmeans::KmeansAlgorithm;
 
 #[derive(Parser, Debug)]
@@ -17,10 +16,18 @@ pub struct Cli {
     output_path: String,
     pieces_folder: String,
     piece_size: u32,
+    #[arg(short = 'r', long = "recursive")]
+    recursive: bool,
     #[arg(short = 'd', long = "dither")]
     dither: bool,
     #[arg(short = 't', long = "transparent_pieces")]
     allow_transparent_pieces: bool,
+    #[arg(short = 'i', long = "kmeans_iterations")]
+    #[arg(default_value_t = 100)]
+    kmeans_iterations: usize,
+    #[arg(short = 's', long = "kmeans_min_score")]
+    #[arg(default_value_t = 0.001)]
+    kmeans_min_score: f32,
 }
 
 #[derive(Debug)]
@@ -55,32 +62,31 @@ impl Error for CliErrors {}
 
 fn run() -> Result<(), CliErrors> {
     let cli = Cli::parse();
-    let allow_transparency = cli.allow_transparent_pieces;
-    let piece_size = (cli.piece_size, cli.piece_size);
-    let pieces_path = cli.pieces_folder;
-    let target_image = cli.input_path;
-    let output_path = cli.output_path;
-    let dithering = cli.dither;
-
-    let mut mosaic_maker = MosaicMaker::new(piece_size);
+    let mut mosaic_maker = MosaicMaker::new(cli.piece_size);
     println!("Loading pieces...");
     mosaic_maker
-        .load_pieces::<HistogramAlgorithm>(&pieces_path, allow_transparency)
-        .map_err(|e| CliErrors::LoadingPieces)?;
+        .load_pieces(
+            &cli.pieces_folder,
+            cli.allow_transparent_pieces,
+            cli.kmeans_iterations,
+            cli.kmeans_min_score,
+        )
+        .map_err(|_| CliErrors::LoadingPieces)?;
     println!("Done loading pieces.");
 
     println!("Composing mosaic...");
     let output = mosaic_maker
-        .compose(&target_image, dithering)
-        .map_err(|e| CliErrors::CompsingMosaic)?;
+        .compose(&cli.input_path, cli.dither)
+        .map_err(|_| CliErrors::CompsingMosaic)?;
     println!("Done composing mosaic.");
 
     println!("Saving mosaic file...");
     output
-        .save(&output_path)
-        .map_err(|e| CliErrors::ErrorSavingImage)?;
+        .save(&cli.output_path)
+        .map_err(|_| CliErrors::ErrorSavingImage)?;
     println!(
-        "Succesfully generated mosaic from {pieces_path} folder and saved result to {output_path}."
+        "Succesfully generated mosaic from {} folder and saved result to {}.",
+        &cli.pieces_folder, &cli.output_path
     );
 
     Ok(())
