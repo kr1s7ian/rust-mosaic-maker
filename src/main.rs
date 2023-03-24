@@ -66,7 +66,8 @@ fn run() {
 
     mosaic_maker
         .load_pieces(&cli.pieces_folder, cli.allow_transparent_pieces, algorithm)
-        .expect(&format!("Error while loading pieces. Make sure that the piece path specified '{}' exists and is a folder.", &cli.pieces_folder));
+        .unwrap_or_else(|_| panic!("Error while loading pieces. Make sure that the piece path specified '{}' exists and is a folder.", &cli.pieces_folder));
+
     println!("Done loading pieces using {} algorithm.", cli.algorithm);
 
     if cli.recursive {
@@ -81,12 +82,12 @@ fn run() {
         );
     } else {
         println!("Composing mosaic...");
-        let output = mosaic_maker.compose(&cli.input_path, cli.dither).expect(&format!("Error while composing mosaic from input image '{}', Make sure the path is valid and is an image format.", cli.input_path));
+        let output = mosaic_maker.compose(&cli.input_path, cli.dither).unwrap_or_else(|_| panic!("Error while composing mosaic from input image '{}', Make sure the path is valid and is an image format.", cli.input_path));
 
         println!("Done composing mosaic.");
 
         println!("Saving mosaic file...");
-        output.save(&cli.output_path).expect(&format!("Error while saving to output path '{}'. Make sure the path ends with an image format and is valid.", cli.output_path));
+        output.save(&cli.output_path).unwrap_or_else(|_| panic!("Error while saving to output path '{}'. Make sure the path ends with an image format and is valid.", cli.output_path));
         println!(
             "Succesfully generated mosaic from {} folder and saved result to {}.",
             &cli.pieces_folder, &cli.output_path
@@ -104,7 +105,7 @@ pub fn compose_folder_recursively(
     output: &str,
     mosaic_maker: &MosaicMaker,
 ) -> Result<(), Box<dyn Error>> {
-    let dir = fs::read_dir(&input)?;
+    let dir = fs::read_dir(input)?;
     for file in dir {
         let file = match file {
             Err(_) => continue,
