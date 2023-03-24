@@ -1,4 +1,9 @@
-use std::{error::Error, fmt::Display, fs, path::Path};
+use std::{
+    error::Error,
+    fmt::{format, Display},
+    fs,
+    path::Path,
+};
 
 use crate::mosaic::MosaicMaker;
 
@@ -35,6 +40,7 @@ enum CliErrors {
     LoadingPieces,
     CompsingMosaic,
     ErrorSavingImage,
+    Recursive,
 }
 
 impl Display for CliErrors {
@@ -55,6 +61,12 @@ impl Display for CliErrors {
                     "Error saving the ouput image, check if the output path is valid and is an image format."
                 )
             }
+            Self::Recursive => {
+                write!(
+                    f,
+                    "Error while recursively converting folder to mosaic, check if the output path already exists."
+                )
+            }
         }
     }
 }
@@ -73,6 +85,13 @@ fn run() -> Result<(), CliErrors> {
         )
         .map_err(|_| CliErrors::LoadingPieces)?;
     println!("Done loading pieces.");
+
+    if cli.recursive {
+        fs::create_dir(&cli.output_path).map_err(|_| CliErrors::Recursive)?;
+        compose_folder_recursively(&cli, &cli.input_path, &cli.output_path, &mosaic_maker)
+            .map_err(|_| CliErrors::Recursive)?;
+        return Ok(());
+    }
 
     println!("Composing mosaic...");
     let output = mosaic_maker
@@ -99,30 +118,38 @@ fn main() {
     }
 }
 
-pub fn compose_folder_recursively(path: &Path, mosaic_maker: &MosaicMaker) {
-    let folder = fs::read_dir(path).unwrap();
-    for file in folder {
+pub fn compose_folder_recursively(
+    cli: &Cli,
+    input: &str,
+    output: &str,
+    mosaic_maker: &MosaicMaker,
+) -> Result<(), Box<dyn Error>> {
+    let dir = fs::read_dir(&input)?;
+    for file in dir {
         let file = match file {
             Err(_) => continue,
             Ok(file) => file,
         };
-        if file.file_type().unwrap().is_dir() {
-            compose_folder_recursively(&file.path(), &mosaic_maker)
+        let filepath = file.path().to_string_lossy().to_string();
+        let filename = file.file_name().to_string_lossy().to_string();
+        let output_dir = format!("{}/{}", output, filename);
+        println!("{}", &output_dir);
+
+        if file.file_type()?.is_dir() {
+            fs::create_dir(&output_dir)?;
+            compose_folder_recursively(cli, &filepath, &output_dir, mosaic_maker)?;
         }
+
         if !is_png(&file.path()) {
             continue;
         }
-        let path = file.path().to_string_lossy().to_string();
-        let filename = file.file_name().to_string_lossy().to_string();
+
         println!("{filename}");
-        let result = mosaic_maker
-            .compose(&path, false)
-            .unwrap()
-            .save(path)
-            .unwrap();
-        //let result = make_black_transparent(&result)
-        //   .to_rgba8()
-        //  .save(path)
-        // .unwrap();
+        //let output = format!("{}/{}", output_dir, &filename);
+        //println!("{output}");
+        mosaic_maker
+            .compose(&filepath, cli.dither)?
+            .save(output_dir)?;
     }
+    Ok(())
 }
