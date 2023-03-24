@@ -45,13 +45,13 @@ pub struct Cli {
     #[arg(value_enum, short = 'a', long = "algorithm", default_value = "kmeans")]
     algorithm: CliAlgorithms,
     #[arg(short = 'i', long = "kmeans_iterations")]
-    #[arg(default_value_t = 100, requires = "algorithm=kmeans")]
+    #[arg(default_value_t = 1000)]
     kmeans_iterations: usize,
     #[arg(short = 'c', long = "kmeans_clusters")]
-    #[arg(default_value_t = 8, requires = "algorithm=kmeans")]
+    #[arg(default_value_t = 1)]
     kmeans_clusters: usize,
-    #[arg(short = 's', long = "kmeans_min_score", requires = "algorithm=kmeans")]
-    #[arg(default_value_t = 0.001)]
+    #[arg(short = 's', long = "kmeans_min_score")]
+    #[arg(default_value_t = 0.0)]
     kmeans_min_score: f32,
 }
 
