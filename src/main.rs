@@ -1,9 +1,4 @@
-use std::{
-    error::Error,
-    fmt::{format, write, Display},
-    fs,
-    path::Path,
-};
+use std::{error::Error, fmt::Display, fs};
 
 use crate::{
     algorithms::{histogram::HistogramAlgorithm, kmeans::KmeansAlgorithm},
@@ -40,7 +35,7 @@ pub struct Cli {
     recursive: bool,
     #[arg(short = 'd', long = "dither")]
     dither: bool,
-    #[arg(short = 't', long = "transparent_pieces")]
+    #[arg(short = 't', long = "use_transparent_pieces")]
     allow_transparent_pieces: bool,
     #[arg(value_enum, short = 'a', long = "algorithm", default_value = "kmeans")]
     algorithm: CliAlgorithms,
@@ -55,94 +50,52 @@ pub struct Cli {
     kmeans_min_score: f32,
 }
 
-#[derive(Debug, PartialEq)]
-enum CliErrors {
-    LoadingPieces,
-    CompsingMosaic,
-    ErrorSavingImage,
-    Recursive,
-}
-
-impl Display for CliErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::CompsingMosaic => {
-                write!(f, "Error composing the mosaic, check if the input image path is valid and it is an image format.")
-            }
-            Self::LoadingPieces => {
-                write!(
-                    f,
-                    "Error loading mosaic pieces, check if the mosaic pieces folder path is valid."
-                )
-            }
-            Self::ErrorSavingImage => {
-                write!(
-                    f,
-                    "Error saving the ouput image, check if the output path is valid and is an image format."
-                )
-            }
-            Self::Recursive => {
-                write!(
-                    f,
-                    "Error while recursively converting folder to mosaic, check if the output path already exists."
-                )
-            }
-        }
-    }
-}
-impl Error for CliErrors {}
-
-fn run() -> Result<(), CliErrors> {
+fn run() {
     let cli = Cli::parse();
     let mut mosaic_maker = MosaicMaker::new(cli.piece_size);
     println!("Loading pieces...");
 
-    let algorithm: Box<dyn AverageColor>;
-    match cli.algorithm {
-        CliAlgorithms::Histogram => algorithm = Box::new(HistogramAlgorithm::new()),
-        CliAlgorithms::Kmeans => {
-            algorithm = Box::new(KmeansAlgorithm::new(
-                cli.kmeans_iterations,
-                cli.kmeans_clusters,
-                cli.kmeans_min_score,
-            ))
-        }
+    let algorithm: Box<dyn AverageColor> = match cli.algorithm {
+        CliAlgorithms::Histogram => Box::new(HistogramAlgorithm::new()),
+        CliAlgorithms::Kmeans => Box::new(KmeansAlgorithm::new(
+            cli.kmeans_iterations,
+            cli.kmeans_clusters,
+            cli.kmeans_min_score,
+        )),
     };
+
     mosaic_maker
         .load_pieces(&cli.pieces_folder, cli.allow_transparent_pieces, algorithm)
-        .map_err(|_| CliErrors::LoadingPieces)?;
+        .expect(&format!("Error while loading pieces. Make sure that the piece path specified '{}' exists and is a folder.", &cli.pieces_folder));
     println!("Done loading pieces using {} algorithm.", cli.algorithm);
 
     if cli.recursive {
-        fs::create_dir(&cli.output_path).map_err(|_| CliErrors::Recursive)?;
+        let error_msg = &format!("Error while composing folder to mosaic recursively, Make sure input path '{}' is a valid folder and that output path '{}' does not already exist.", cli.input_path, cli.output_path);
+        fs::create_dir(&cli.output_path).expect(error_msg);
         compose_folder_recursively(&cli, &cli.input_path, &cli.output_path, &mosaic_maker)
-            .map_err(|_| CliErrors::Recursive)?;
-        return Ok(());
+            .expect(error_msg);
+
+        println!(
+            "Done converting folder recursively to mosaic, saved to {} folder.",
+            &cli.output_path
+        );
+    } else {
+        println!("Composing mosaic...");
+        let output = mosaic_maker.compose(&cli.input_path, cli.dither).expect(&format!("Error while composing mosaic from input image '{}', Make sure the path is valid and is an image format.", cli.input_path));
+
+        println!("Done composing mosaic.");
+
+        println!("Saving mosaic file...");
+        output.save(&cli.output_path).expect(&format!("Error while saving to output path '{}'. Make sure the path ends with an image format and is valid.", cli.output_path));
+        println!(
+            "Succesfully generated mosaic from {} folder and saved result to {}.",
+            &cli.pieces_folder, &cli.output_path
+        );
     }
-
-    println!("Composing mosaic...");
-    let output = mosaic_maker
-        .compose(&cli.input_path, cli.dither)
-        .map_err(|_| CliErrors::CompsingMosaic)?;
-    println!("Done composing mosaic.");
-
-    println!("Saving mosaic file...");
-    output
-        .save(&cli.output_path)
-        .map_err(|_| CliErrors::ErrorSavingImage)?;
-    println!(
-        "Succesfully generated mosaic from {} folder and saved result to {}.",
-        &cli.pieces_folder, &cli.output_path
-    );
-
-    Ok(())
 }
 
 fn main() {
-    match run() {
-        Err(e) => println!("{}", e.to_string()),
-        Ok(_) => println!(""),
-    }
+    run();
 }
 
 pub fn compose_folder_recursively(
@@ -168,12 +121,9 @@ pub fn compose_folder_recursively(
         }
 
         if !is_png(&file.path()) {
+            println!("Ignoring {filepath}, This file is not an image or is corrupted.");
             continue;
         }
-
-        println!("{filename}");
-        //let output = format!("{}/{}", output_dir, &filename);
-        //println!("{output}");
         mosaic_maker
             .compose(&filepath, cli.dither)?
             .save(output_dir)?;
