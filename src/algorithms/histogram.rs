@@ -1,11 +1,17 @@
-use image::DynamicImage;
-
+#![allow(dead_code)]
 use crate::utils::AverageColor;
+use image::DynamicImage;
 
 pub struct HistogramAlgorithm {}
 
+impl HistogramAlgorithm {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl AverageColor for HistogramAlgorithm {
-    fn average_color(image: &DynamicImage) -> Option<[u8; 3]> {
+    fn average_color(&self, image: &DynamicImage) -> Option<[u8; 3]> {
         let mut color_counts: std::collections::HashMap<[u8; 3], u32> =
             std::collections::HashMap::new();
 

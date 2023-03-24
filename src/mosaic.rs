@@ -16,7 +16,7 @@ pub struct Piece {
 #[derive(Debug, Clone)]
 pub struct MosaicMaker {
     pieces: Vec<Piece>,
-    piece_size: (u32, u32),
+    piece_size: u32,
 }
 
 impl MosaicMaker {
@@ -37,17 +37,18 @@ impl MosaicMaker {
 }
 
 impl MosaicMaker {
-    pub fn new(piece_size: (u32, u32)) -> Self {
+    pub fn new(piece_size: u32) -> Self {
         Self {
             pieces: vec![],
             piece_size,
         }
     }
 
-    pub fn load_pieces<T: AverageColor>(
+    pub fn load_pieces(
         &mut self,
         path: &str,
         allow_transparency: bool,
+        algorithm: Box<dyn AverageColor>,
     ) -> Result<&mut Self, Box<dyn Error>> {
         let pieces_path = Path::new(path);
         let folder = fs::read_dir(pieces_path)?;
@@ -72,7 +73,7 @@ impl MosaicMaker {
             println!("Loading: {path_string}...");
             let img = img.to_rgba8();
 
-            let average_color = T::average_color(&img.into());
+            let average_color = algorithm.average_color(&img.into());
             let average_color = match average_color {
                 None => continue,
                 Some(color) => color,
@@ -91,11 +92,11 @@ impl MosaicMaker {
         self.pieces.clear();
     }
 
-    pub fn pieces_size(&self) -> (u32, u32) {
+    pub fn pieces_size(&self) -> u32 {
         self.piece_size
     }
 
-    pub fn set_piece_size(&mut self, piece_size: (u32, u32)) {
+    pub fn set_piece_size(&mut self, piece_size: u32) {
         self.piece_size = piece_size;
     }
 
@@ -107,7 +108,7 @@ impl MosaicMaker {
         let mut target_image = image::open(image_path)?.to_rgba8();
 
         let (target_width, target_height) = target_image.dimensions();
-        let (piece_width, piece_height) = self.piece_size;
+        let (piece_width, piece_height) = (self.piece_size, self.piece_size);
 
         let mut output_img =
             DynamicImage::new_rgba8(target_width * piece_width, target_height * piece_height);

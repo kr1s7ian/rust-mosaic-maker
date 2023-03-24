@@ -1,12 +1,28 @@
+#![allow(dead_code)]
 use crate::utils::AverageColor;
 use kmeans_colors::{get_kmeans, Kmeans, Sort};
 use palette::{rgb::Rgb, IntoColor, Lab, Pixel, Srgb};
 
-pub struct KmeansAlgorithm {}
+pub struct KmeansAlgorithm {
+    max_iterations: usize,
+    clusters: usize,
+    min_score: f32,
+}
+
+impl KmeansAlgorithm {
+    pub fn new(max_iterations: usize, clusters: usize, min_score: f32) -> Self {
+        Self {
+            max_iterations,
+            clusters,
+            min_score,
+        }
+    }
+}
 
 impl AverageColor for KmeansAlgorithm {
-    fn average_color(image: &image::DynamicImage) -> Option<[u8; 3]> {
-        let buffer = image.as_bytes();
+    fn average_color(&self, image: &image::DynamicImage) -> Option<[u8; 3]> {
+        let image = image.to_rgb8();
+        let buffer = &*image;
         let lab: Vec<Lab> = Srgb::from_raw_slice(buffer)
             .iter()
             .map(|x| x.into_format().into_color())
@@ -14,11 +30,17 @@ impl AverageColor for KmeansAlgorithm {
 
         // Iterate over the runs, keep the best results
         let mut result = Kmeans::new();
-        for i in 0..3 {
-            let run_result = get_kmeans(8, 20, 5.0, false, &lab, 72342792347 + i as u64);
+        for i in 0..self.max_iterations {
+            let run_result =
+                get_kmeans(self.clusters, 20, 5.0, false, &lab, 72342792347 + i as u64);
             if run_result.score < result.score {
                 result = run_result;
             }
+        }
+
+        let score = result.score;
+        if score < self.min_score {
+            return None;
         }
 
         // Using the results from the previous example, process the centroid data
