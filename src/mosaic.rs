@@ -4,7 +4,7 @@ use std::{error::Error, fs, path::Path};
 use image::{imageops, DynamicImage};
 
 use crate::{
-    algorithms::{dithering::dither_img, kmeans::KmeansAlgorithm},
+    algorithms::dithering::dither_img,
     utils::{img_transparent, is_png, pixel_transparent, rgb_distance, AverageColor},
 };
 #[derive(Debug, Clone)]
