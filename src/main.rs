@@ -47,6 +47,9 @@ pub struct Cli {
     #[arg(short = 'i', long = "kmeans_iterations")]
     #[arg(default_value_t = 100, requires = "algorithm=kmeans")]
     kmeans_iterations: usize,
+    #[arg(short = 'c', long = "kmeans_clusters")]
+    #[arg(default_value_t = 8, requires = "algorithm=kmeans")]
+    kmeans_clusters: usize,
     #[arg(short = 's', long = "kmeans_min_score", requires = "algorithm=kmeans")]
     #[arg(default_value_t = 0.001)]
     kmeans_min_score: f32,
@@ -100,6 +103,7 @@ fn run() -> Result<(), CliErrors> {
         CliAlgorithms::Kmeans => {
             algorithm = Box::new(KmeansAlgorithm::new(
                 cli.kmeans_iterations,
+                cli.kmeans_clusters,
                 cli.kmeans_min_score,
             ))
         }
@@ -107,7 +111,7 @@ fn run() -> Result<(), CliErrors> {
     mosaic_maker
         .load_pieces(&cli.pieces_folder, cli.allow_transparent_pieces, algorithm)
         .map_err(|_| CliErrors::LoadingPieces)?;
-    println!("Done loading pieces.");
+    println!("Done loading pieces using {} algorithm.", cli.algorithm);
 
     if cli.recursive {
         fs::create_dir(&cli.output_path).map_err(|_| CliErrors::Recursive)?;

@@ -5,13 +5,15 @@ use palette::{rgb::Rgb, IntoColor, Lab, Pixel, Srgb};
 
 pub struct KmeansAlgorithm {
     max_iterations: usize,
+    clusters: usize,
     min_score: f32,
 }
 
 impl KmeansAlgorithm {
-    pub fn new(max_iterations: usize, min_score: f32) -> Self {
+    pub fn new(max_iterations: usize, clusters: usize, min_score: f32) -> Self {
         Self {
             max_iterations,
+            clusters,
             min_score,
         }
     }
@@ -29,7 +31,8 @@ impl AverageColor for KmeansAlgorithm {
         // Iterate over the runs, keep the best results
         let mut result = Kmeans::new();
         for i in 0..self.max_iterations {
-            let run_result = get_kmeans(8, 20, 5.0, false, &lab, 72342792347 + i as u64);
+            let run_result =
+                get_kmeans(self.clusters, 20, 5.0, false, &lab, 72342792347 + i as u64);
             if run_result.score < result.score {
                 result = run_result;
             }
