@@ -4,8 +4,8 @@ use std::{error::Error, fs, path::Path};
 use image::{imageops, DynamicImage};
 
 use crate::{
-    algorithms::{dithering::dither_img, kmeans::average_color},
-    utils::{img_transparent, is_png, pixel_transparent, rgb_distance},
+    algorithms::{dithering::dither_img, kmeans::KmeansAlgorithm},
+    utils::{img_transparent, is_png, pixel_transparent, rgb_distance, AverageColor},
 };
 #[derive(Debug, Clone)]
 pub struct Piece {
@@ -48,8 +48,7 @@ impl MosaicMaker {
         &mut self,
         path: &str,
         allow_transparency: bool,
-        kmeans_iterations: usize,
-        kmeans_min_score: f32,
+        algorithm: Box<dyn AverageColor>,
     ) -> Result<&mut Self, Box<dyn Error>> {
         let pieces_path = Path::new(path);
         let folder = fs::read_dir(pieces_path)?;
@@ -74,7 +73,7 @@ impl MosaicMaker {
             println!("Loading: {path_string}...");
             let img = img.to_rgba8();
 
-            let average_color = average_color(&img.into(), kmeans_iterations, kmeans_min_score);
+            let average_color = algorithm.average_color(&img.into());
             let average_color = match average_color {
                 None => continue,
                 Some(color) => color,
