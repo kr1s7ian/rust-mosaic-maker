@@ -1,9 +1,15 @@
-use std::{error::Error, fmt::Display, fs};
+use std::{
+    error::Error,
+    fmt::Display,
+    fs::{self, File},
+    io::BufWriter,
+    path::Path,
+};
 
 use crate::{
     algorithms::{histogram::HistogramAlgorithm, kmeans::KmeansAlgorithm},
     mosaic::MosaicMaker,
-    utils::AverageColor,
+    utils::{is_gif, AverageColor},
 };
 
 mod algorithms;
@@ -11,7 +17,10 @@ mod mosaic;
 mod utils;
 
 use clap::{Parser, ValueEnum};
-use utils::is_png;
+use image::{
+    codecs::gif::{GifDecoder, GifEncoder},
+    AnimationDecoder, DynamicImage, Frame,
+};
 //use algorithms::kmeans::KmeansAlgorithm;
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -50,10 +59,9 @@ pub struct Cli {
     kmeans_min_score: f32,
 }
 
-fn run() {
+fn run() -> Option<()> {
     let cli = Cli::parse();
     let mut mosaic_maker = MosaicMaker::new(cli.piece_size);
-    println!("Loading pieces...");
 
     let algorithm: Box<dyn AverageColor> = match cli.algorithm {
         CliAlgorithms::Histogram => Box::new(HistogramAlgorithm::new()),
@@ -64,39 +72,100 @@ fn run() {
         )),
     };
 
+    println!("Loading pieces...");
     mosaic_maker
         .load_pieces(&cli.pieces_folder, cli.allow_transparent_pieces, algorithm)
         .unwrap_or_else(|_| panic!("Error while loading pieces. Make sure that the piece path specified '{}' exists and is a folder.", &cli.pieces_folder));
-
     println!("Done loading pieces using {} algorithm.", cli.algorithm);
 
     if cli.recursive {
-        let error_msg = &format!("Error while composing folder to mosaic recursively, Make sure input path '{}' is a valid folder and that output path '{}' does not already exist.", cli.input_path, cli.output_path);
-        fs::create_dir(&cli.output_path).expect(error_msg);
+        let error_msg = format!("Error while composing folder to mosaic recursively, Make sure input path '{}' is a valid folder and that output path '{}' does not already exist.", cli.input_path, cli.output_path);
+        fs::create_dir(&cli.output_path).expect(&error_msg);
         compose_folder_recursively(&cli, &cli.input_path, &cli.output_path, &mosaic_maker)
-            .expect(error_msg);
+            .expect(&error_msg);
 
         println!(
             "Done converting folder recursively to mosaic, saved to {} folder.",
             &cli.output_path
         );
-    } else {
-        println!("Composing mosaic...");
-        let output = mosaic_maker.compose(&cli.input_path, cli.dither).unwrap_or_else(|_| panic!("Error while composing mosaic from input image '{}', Make sure the path is valid and is an image format.", cli.input_path));
 
-        println!("Done composing mosaic.");
-
-        println!("Saving mosaic file...");
-        output.save(&cli.output_path).unwrap_or_else(|_| panic!("Error while saving to output path '{}'. Make sure the path ends with an image format and is valid.", cli.output_path));
-        println!(
-            "Succesfully generated mosaic from {} folder and saved result to {}.",
-            &cli.pieces_folder, &cli.output_path
-        );
+        return None;
     }
+
+    let input_path = Path::new(&cli.input_path);
+    if is_gif(input_path) {
+        println!("Gifs might take a while to convert...");
+        compose_gif(&cli.input_path, &cli.output_path, cli.dither, &mosaic_maker).unwrap_or_else(
+            |_| panic!(
+            "Error while converting gif to mosaic, make sure input_path '{}' and output_path '{}' are valid paths.",
+            &cli.input_path, &cli.output_path),
+        );
+
+        return None;
+    }
+    let img = image::open(&cli.input_path).expect("Error while opening input_path image");
+    println!("Composing '{}'...", &cli.input_path);
+    let output = mosaic_maker.compose(&img, cli.dither).unwrap_or_else(|_| panic!("Error while composing mosaic from input image '{}', Make sure the path is valid and is an image format.", cli.input_path));
+
+    println!("Saving '{}'...", &cli.output_path);
+    output.save(&cli.output_path).unwrap_or_else(|_| panic!("Error while saving to output path '{}'. Make sure the path ends with an image format and is valid.", cli.output_path));
+
+    Some(())
 }
 
 fn main() {
-    run();
+    run().map(|_| std::process::exit(0));
+    println!("Done!");
+}
+
+pub fn compose_gif(
+    input_path: &str,
+    output_path: &str,
+    dithering: bool,
+    mosaic_maker: &MosaicMaker,
+) -> Result<(), Box<dyn Error>> {
+    let file = File::open(input_path)?;
+    let decoder = GifDecoder::new(file)?;
+
+    let frames = decoder.into_frames();
+    let frames = frames.collect_frames()?;
+    let total_frames = frames.len();
+    println!("Composing '{}'...", &input_path);
+
+    let mut current_frame = 0;
+    let frames = frames
+        .iter()
+        .map(|f| {
+            println!("Frame [{}/{}]", &current_frame, &total_frames);
+            let top = f.top();
+            let left = f.left();
+            let delay = f.delay();
+
+            let image: DynamicImage = f.clone().into_buffer().into();
+            let mosaic = mosaic_maker.compose(&image, dithering).unwrap_or_else(|_| {
+                panic!("Error while composing mosaic frame {}", &current_frame)
+            });
+
+            let frame = Frame::from_parts(mosaic.into_rgba8(), left, top, delay);
+            current_frame += 1;
+            frame
+        })
+        .collect::<Vec<Frame>>();
+    println!("Saving '{}'...", &output_path);
+
+    let mut file = BufWriter::new(File::create(output_path)?);
+    let mut encoder = GifEncoder::new(&mut file);
+    encoder.set_repeat(image::codecs::gif::Repeat::Infinite)?;
+
+    let mut current_frame = 0;
+    for frame in frames {
+        current_frame += 1;
+        let progress = ((current_frame as f32 / total_frames as f32) * 100f32) as usize;
+        println!("Saving {}%", progress);
+        encoder.encode_frame(frame)?;
+    }
+
+    Ok(())
 }
 
 pub fn compose_folder_recursively(
@@ -116,18 +185,21 @@ pub fn compose_folder_recursively(
         let output_dir = format!("{}/{}", output, filename);
         println!("{}", &output_dir);
 
-        if file.file_type()?.is_dir() {
+        let is_dir = file.file_type()?.is_dir();
+        if is_dir {
             fs::create_dir(&output_dir)?;
             compose_folder_recursively(cli, &filepath, &output_dir, mosaic_maker)?;
         }
 
-        if !is_png(&file.path()) {
-            println!("Ignoring {filepath}, This file is not an image or is corrupted.");
-            continue;
-        }
-        mosaic_maker
-            .compose(&filepath, cli.dither)?
-            .save(output_dir)?;
+        let img = image::open(&filepath);
+        let img = match img {
+            Err(_) => {
+                println!("Ignoring {filepath}, This file is not an image or is corrupted.");
+                continue;
+            }
+            Ok(img) => img,
+        };
+        mosaic_maker.compose(&img, cli.dither)?.save(output_dir)?;
     }
     Ok(())
 }
