@@ -9,6 +9,10 @@ pub fn is_png(path: &Path) -> bool {
     path.extension().and_then(OsStr::to_str) == Some("png")
 }
 
+pub fn is_gif(path: &Path) -> bool {
+    path.extension().and_then(OsStr::to_str) == Some("gif")
+}
+
 pub fn closest_color(available_colors: &[[u8; 3]], target: &[u8; 3]) -> [u8; 3] {
     let mut biggest_difference: i64 = i64::max_value();
     let mut closest = [0u8, 0u8, 0u8];
