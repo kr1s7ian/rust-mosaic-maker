@@ -102,10 +102,10 @@ impl MosaicMaker {
 
     pub fn compose(
         &self,
-        image_path: &str,
+        image: &DynamicImage,
         dithering: bool,
     ) -> Result<DynamicImage, Box<dyn Error>> {
-        let mut target_image = image::open(image_path)?.to_rgba8();
+        let mut target_image = image.to_rgba8();
 
         let (target_width, target_height) = target_image.dimensions();
         let (piece_width, piece_height) = (self.piece_size, self.piece_size);
