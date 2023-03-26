@@ -57,13 +57,14 @@ impl MosaicMaker {
             let file = file?;
             let path_string = file.path().to_string_lossy().to_string();
 
-            if !is_png(&file.path()) {
-                println!("Ignoring: {path_string}, this file is not a png or is corrupted.");
-                continue;
-            };
-
             let piece_img_path = path_string.as_str();
-            let img = image::open(piece_img_path)?;
+            let img = match image::open(piece_img_path) {
+                Err(_) => {
+                    println!("Ignoring: {path_string}, this file is not an image or is corrupted.");
+                    continue;
+                }
+                Ok(img) => img,
+            };
 
             if img_transparent(&img) && !allow_transparency {
                 println!("Ignoring: {path_string}, this file contains transparent pixels.");
