@@ -38,9 +38,11 @@ impl AverageColor for KmeansAlgorithm {
             }
         }
 
-        let score = result.score;
-        if score < self.min_score {
-            return None;
+        if self.min_score != 0.0f32 {
+            let score = result.score;
+            if score < self.min_score {
+                return None;
+            }
         }
 
         // Using the results from the previous example, process the centroid data
