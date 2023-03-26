@@ -21,7 +21,6 @@ use image::{
     codecs::gif::{GifDecoder, GifEncoder},
     AnimationDecoder, DynamicImage, Frame,
 };
-//use algorithms::kmeans::KmeansAlgorithm;
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum CliAlgorithms {
@@ -49,7 +48,7 @@ pub struct Cli {
     #[arg(value_enum, short = 'a', long = "algorithm", default_value = "kmeans")]
     algorithm: CliAlgorithms,
     #[arg(short = 'i', long = "kmeans_iterations")]
-    #[arg(default_value_t = 1000)]
+    #[arg(default_value_t = 10)]
     kmeans_iterations: usize,
     #[arg(short = 'c', long = "kmeans_clusters")]
     #[arg(default_value_t = 1)]
@@ -95,7 +94,7 @@ fn run() -> Option<()> {
     let input_path = Path::new(&cli.input_path);
     if is_gif(input_path) {
         println!("Gifs might take a while to convert...");
-        compose_gif(&cli.input_path, &cli.output_path, cli.dither, &mosaic_maker).unwrap_or_else(
+        compose_gif(&cli, &mosaic_maker).unwrap_or_else(
             |_| panic!(
             "Error while converting gif to mosaic, make sure input_path '{}' and output_path '{}' are valid paths.",
             &cli.input_path, &cli.output_path),
@@ -118,19 +117,14 @@ fn main() {
     println!("Done!");
 }
 
-pub fn compose_gif(
-    input_path: &str,
-    output_path: &str,
-    dithering: bool,
-    mosaic_maker: &MosaicMaker,
-) -> Result<(), Box<dyn Error>> {
-    let file = File::open(input_path)?;
+pub fn compose_gif(cli: &Cli, mosaic_maker: &MosaicMaker) -> Result<(), Box<dyn Error>> {
+    let file = File::open(&cli.input_path)?;
     let decoder = GifDecoder::new(file)?;
 
     let frames = decoder.into_frames();
     let frames = frames.collect_frames()?;
     let total_frames = frames.len();
-    println!("Composing '{}'...", &input_path);
+    println!("Composing '{}'...", &cli.input_path);
 
     let mut current_frame = 0;
     let frames = frames
@@ -142,18 +136,20 @@ pub fn compose_gif(
             let delay = f.delay();
 
             let image: DynamicImage = f.clone().into_buffer().into();
-            let mosaic = mosaic_maker.compose(&image, dithering).unwrap_or_else(|_| {
-                panic!("Error while composing mosaic frame {}", &current_frame)
-            });
+            let mosaic = mosaic_maker
+                .compose(&image, cli.dither)
+                .unwrap_or_else(|_| {
+                    panic!("Error while composing mosaic frame {}", &current_frame)
+                });
 
             let frame = Frame::from_parts(mosaic.into_rgba8(), left, top, delay);
             current_frame += 1;
             frame
         })
         .collect::<Vec<Frame>>();
-    println!("Saving '{}'...", &output_path);
+    println!("Saving '{}'...", &cli.output_path);
 
-    let mut file = BufWriter::new(File::create(output_path)?);
+    let mut file = BufWriter::new(File::create(&cli.output_path)?);
     let mut encoder = GifEncoder::new(&mut file);
     encoder.set_repeat(image::codecs::gif::Repeat::Infinite)?;
 
