@@ -5,7 +5,7 @@ use image::{imageops, DynamicImage};
 
 use crate::{
     algorithms::dithering::dither_img,
-    utils::{img_transparent, is_png, pixel_transparent, rgb_distance, AverageColor},
+    utils::{img_transparent, pixel_transparent, rgb_distance, AverageColor},
 };
 #[derive(Debug, Clone)]
 pub struct Piece {
