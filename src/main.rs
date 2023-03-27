@@ -101,7 +101,7 @@ fn main() {
     };
     mosaic_maker
         .load_pieces(&cli.pieces_folder, cli.allow_transparent_pieces, algorithm)
-        .unwrap_or_else(|_| panic!("Error while loading pieces. Make sure that the piece path specified '{}' exists and is a folder.", &cli.pieces_folder));
+        .unwrap_or_else(|_| panic!("Error while loading pieces. Make sure that the piece_path '{}' exists and is a folder.", &cli.pieces_folder));
 
     if cli.recursive {
         compose_folder(&cli, &mosaic_maker);
@@ -113,8 +113,12 @@ fn main() {
 }
 
 fn compose_image(cli: &Cli, mosaic_maker: &MosaicMaker) {
-    let img = image::open(&cli.input_path)
-        .unwrap_or_else(|_| panic!("Error while opening input_path '{}.'", &cli.input_path));
+    let img = image::open(&cli.input_path).unwrap_or_else(|_| {
+        panic!(
+            "Error while opening input_path '{}', make sure it's a valid path.'",
+            &cli.input_path
+        )
+    });
 
     println!("Composing from '{}'...", &cli.input_path);
     let output = mosaic_maker.compose(&img, cli.dither)
