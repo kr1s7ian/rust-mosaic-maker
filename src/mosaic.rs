@@ -66,7 +66,7 @@ impl MosaicMaker {
                 Ok(img) => img,
             };
 
-            if img_transparent(&img) && !allow_transparency {
+            if !allow_transparency && img_transparent(&img) {
                 println!("Ignoring: {path_string}, this file contains transparent pixels.");
                 continue;
             }
