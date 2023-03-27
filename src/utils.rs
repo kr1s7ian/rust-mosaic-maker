@@ -5,10 +5,6 @@ pub trait AverageColor {
     fn average_color(&self, image: &DynamicImage) -> Option<[u8; 3]>;
 }
 
-pub fn is_png(path: &Path) -> bool {
-    path.extension().and_then(OsStr::to_str) == Some("png")
-}
-
 pub fn is_gif(path: &Path) -> bool {
     path.extension().and_then(OsStr::to_str) == Some("gif")
 }
