@@ -19,7 +19,7 @@ Options:
   -a, --algorithm <ALGORITHM>
           [default: kmeans] [possible values: kmeans, histogram]
   -i, --kmeans_iterations <KMEANS_ITERATIONS>
-          [default: 1000]
+          [default: 10]
   -c, --kmeans_clusters <KMEANS_CLUSTERS>
           [default: 1]
   -s, --kmeans_min_score <KMEANS_MIN_SCORE>
