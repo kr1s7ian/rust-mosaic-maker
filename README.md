@@ -34,4 +34,4 @@ This is a Minecraft crafting table made of Minecraft blocks (no dithering, and w
 
 This is the David made of minecraft blocks (with dithering)
 
-![David made of minecraft blocks](https://i.imgur.com/xvYXZF5.jpg)
+<img src="https://i.imgur.com/VKqN63V.png" width="50%" height="50%">
